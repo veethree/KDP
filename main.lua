@@ -1,3 +1,6 @@
+NAME = "KDP"
+VERSION = 0.1
+
 -- GLOBALS
 lg = love.graphics
 fs = love.filesystem
@@ -15,28 +18,23 @@ remove = table.remove
 function love.load()
     -- Loading classes
     require "src.class.util"
-    cmd = require "src.class.command"
-    editor = require "src.class.editor"
-    smoof = require "src.class.smoof"
-    exString = require "src.class.exString"
+    requireFolder("src/class")
     exString.import()
 
-    config = {
+    local defaultConfig = {
         palette = {
             default = "src/palette/resurrect-32-1x.png"
         },
         color = {
-            text_default = color(255, 255, 255),
-            text_alt = color(30, 30, 30),
-            background_global = color(100, 100, 100),
-            background_alt = color(30, 30, 30),
-            editor_cursor_color = color(20, 126, 255),
-            debug = color(255, 0, 255)
+            text_default = {255, 255, 255},
+            text_alt = {30, 30, 30},
+            background_global = {64, 64, 64},
+            background_alt = {30, 30, 30},
+            editor_cursor_color = {20, 126, 255},
+            debug = {255, 0, 255}
         },
         font = {
-            large = lg.newFont("src/font/monogram.ttf", lg.getWidth() * 0.1),
-            small = lg.newFont("src/font/monogram.ttf", lg.getWidth() * 0.04),
-            tiny = lg.newFont("src/font/monogram.ttf", lg.getWidth() * 0.03),
+            file = "src/font/monogram.ttf"
         },
         keys = {
             cursor_left = "left",
@@ -47,42 +45,68 @@ function love.load()
             cursor_erase = "x",
             cursor_fill = "f",
             cursor_pick = "s",
-            cursor_change = "c",
+            cursor_change = "_",
             toggle_command = "tab",
             toggle_grid = "g",
-            select_palette_color = "p",
+            select_palette_color = "c",
             undo = "u",
             redo = "y"
         },
         settings = {
             max_undo_steps = 100,
             use_history = true,
+            show_grid = false,
             debug = true
         }
     }
+
+    -- Loading config
+    fs.setIdentity(NAME)
+    config = defaultConfig
+    if fs.getInfo("config.ini") then
+        --config = ini.load("config.ini")
+    else
+        --ttf.save(config, "config.lua")
+        ini.save(config, "config.ini")
+    end
+
+    -- Loading fonts
+    config.font.large = lg.newFont(config.font.file, lg.getWidth() * 0.1)
+    config.font.small = lg.newFont(config.font.file, lg.getWidth() * 0.04)
+    config.font.tiny = lg.newFont(config.font.file, lg.getWidth() * 0.03)
+
+    -- Loading colors
+    for k,v in pairs(config.color) do
+        config.color[k] = color(unpack(v))
+    end
 
     -- Löve setup
     lg.setBackgroundColor(config.color.background_global)
     lg.setLineStyle("rough")
     lk.setKeyRepeat(true)
 
-    cmd:load()
-    cmd:hide()
+    command:load()
+    command:hide()
 
     -- Registering commands
-    cmd:register("q", function() love.event.push("quit") end)
-    cmd:register("color", function(r, g, b, a)
+    command:register("q", function() love.event.push("quit") end)
+    command:register("os", function() love.system.openURL("file://"..love.filesystem.getSaveDirectory()) end)
+    command:register("color", function(r, g, b, a)
+        if r and not g and not b and not a then
+            g = r
+            b = r
+        end
         a = a or 255
         editor.color = {r / 255, g / 255, b / 255, a / 255}
     end)
-    cmd:register("p", function(index)
+    command:register("p", function(index)
         editor:selectPaletteColor(tonumber(index))
     end)
-    cmd:register("ap", function(index)
+    command:register("ap", function(index)
         editor:addToPalette(nil, index)
     end)
 
-    cmd:register("shade", function(factor)
+    command:register("shade", function(factor)
         factor = factor or 1.1
         local new = copyColor(editor.color)
         for i=1, 3 do
@@ -91,7 +115,7 @@ function love.load()
         editor.color = new
     end)
 
-    cmd:register("light", function(factor)
+    command:register("light", function(factor)
         factor = factor or 0.1
         local new = copyColor(editor.color)
         for i=1, 3 do
@@ -100,18 +124,44 @@ function love.load()
         editor.color = new
     end)
 
+    command:register("new", function(w, h)
+        if w and not h then
+            h = w
+        end
+        editor:new(w or 16, h or 16)
+    end)
 
-    cmd:register("new", function(w, h)
-        editor:new(w, h)
+    command:register("save", function(...)
+        local file = ""
+        for i,v in ipairs({...}) do 
+            file = file..v
+            if i < #{...} then
+                file = file.." "
+            end
+        end
+        file = file..".png"
+        editor:save(file)
+    end)
+
+    command:register("load", function(...)
+        local file = ""
+        for i,v in ipairs({...}) do 
+            file = file..v
+            if i < #{...} then
+                file = file.." "
+            end
+        end
+        file = file..".png"
+        editor:loadImage(file)
     end)
 
     -- "shaders"
-    cmd:register("invert", function()
+    command:register("invert", function()
         editor:map(function(pixel)
             return {1 - pixel[1], 1 - pixel[2], 1 - pixel[3], pixel[4]}
         end)
     end)
-    cmd:register("grayscale", function()
+    command:register("grayscale", function()
         editor:map(function(pixel)
             local avg = pixel[1] + pixel[2] + pixel[3] / 3
             return {avg, avg, avg, pixel[4]}
@@ -131,25 +181,25 @@ end
 
 function love.draw()
     editor:draw()
-    cmd:draw()
+    command:draw()
 
     lg.setColor(config.color.debug)
     lg.setFont(config.font.tiny)
-    lg.print(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight())
+    lg.printf(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight() * 2, lg.getWidth(), "center")
 end
 
 function love.textinput(t)
-    cmd:textinput(t)
+    command:textinput(t)
 end
 
 function love.keypressed(key)
     if key == "escape" then love.event.push("quit") end 
-    if key == config.keys.toggle_command then cmd:toggle() end
-    if key == "backspace" then cmd:backspace() end
-    if key == "return" then cmd:run() end
+    if key == config.keys.toggle_command then command:toggle() end
+    if key == "backspace" then command:backspace() end
+    if key == "return" then command:run() end
     
 
-    if not cmd.visible then
+    if not command.visible then
         if key == config.keys.cursor_left then
             editor:moveCursor(-1, 0)
         elseif key == config.keys.cursor_right then
@@ -173,18 +223,24 @@ function love.keypressed(key)
         elseif key == config.keys.redo then
             editor:redo()
         elseif key == config.keys.toggle_grid then 
-            editor:toggleBorder()
+            config.settings.show_grid = not config.settings.show_grid
         elseif key == config.keys.cursor_change then
             local r, g, b, a = unpack(editor:getPixel())
-            cmd:show()
-            cmd.command = "color "..r.." "..g.." "..b.." "..a
+            command:show()
+            command.command = "color "..r.." "..g.." "..b.." "..a
         elseif key == config.keys.select_palette_color then
-            cmd:show()
-            cmd.command = "p "
+            command:show()
+            command.command = "p "
         end
 
         if tonumber(key) then
             editor:selectPaletteColor(tonumber(key))
         end
     end
+end
+
+function love.filedropped(file)
+    file:open("r")
+    local data = love.image.newImageData(file)
+    editor:loadImage(data)
 end

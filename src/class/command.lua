@@ -85,7 +85,7 @@ end
 
 function cmd:run()
     local spl = self.command:split(" ")
-    for i,v in ipairs(spl) do print(v) end
+    --for i,v in ipairs(spl) do print(v) end
     local command = spl[1]
     if self.commands[command] and self.visible then
         table.remove(spl, 1)

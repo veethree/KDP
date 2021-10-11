@@ -37,7 +37,13 @@ end
 
 function editor:loadImage(path)
     self.pixels = {}
-    local data = love.image.newImageData(path)
+    local data
+    if type(path) == "string" then
+        if not fs.getInfo(path) then return false end
+        data = love.image.newImageData(path)
+    elseif type(path) == "userdata" then
+        data = path
+    end
     self.width = data:getWidth()
     self.height = data:getHeight()
     for y=1, self.height do
@@ -51,7 +57,7 @@ function editor:loadImage(path)
     self.cursorY = floor(self.height / 2)
     self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
     self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
-
+    return true
 end
 
 function editor:draw()
@@ -70,7 +76,11 @@ function editor:draw()
             for x=1, self.width do
                 local pixel = self.pixels[y][x]
                 lg.setColor(pixel)
-                lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+                local border = 1
+                if not config.settings.show_grid then
+                    border = 0
+                end
+                lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - border, self.cellSize - border)
             end
         end
         -- Cursor
@@ -246,6 +256,16 @@ function editor:clone()
         end
     end
     return copy
+end
+
+function editor:save(file)
+    local data = love.image.newImageData(self.width, self.height)
+    for y=1, self.height do
+        for x=1, self.width do
+            data:setPixel(x - 1, y - 1, unpack(self.pixels[y][x]))
+        end
+    end
+    data:encode("png", file)
 end
 
 --<<[[ SETTINGS ]]>>--
