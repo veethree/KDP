@@ -29,7 +29,8 @@ local tt = {
     tick = 0,
     bufferLength = 32,
     bufferTimeout = 1,
-    waitForTimeout = false
+    waitForTimeout = false,
+    inputFilter = function() return true end
 }
 
 --==[[  BUFFER MANAGEMENT ]]==--
@@ -50,6 +51,11 @@ end
 function tt:setWaitForTimeout(wait)
     assert(type(wait) == "boolean", "'waitForTimeout' must be a boolean!")
     self.waitForTimeout = wait
+end
+
+function tt:setInputFilter(filt)
+    assert(type(filt) == "function", "Input filter must be a function!")
+    self.inputFilter = filt
 end
 
 -- Clear the buffer
@@ -79,10 +85,12 @@ end
 
 -- Checks for triggers
 function tt:checkTriggers()
-    for trigger, binding in pairs(self.bindings) do
-        if self.buffer:match(trigger.."$") then
-            binding.func(unpack(binding.arguments))
-            self:clearBuffer()
+    if self.inputFilter() then
+        for trigger, binding in pairs(self.bindings) do
+            if self.buffer:match(trigger.."$") then
+                binding.func(unpack(binding.arguments))
+                self:clearBuffer()
+            end
         end
     end
 end

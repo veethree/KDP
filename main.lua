@@ -23,7 +23,7 @@ function love.load()
 
     local defaultConfig = {
         palette = {
-            default = "src/palette/resurrect-32-1x.png"
+            default = "src/palette/duel-1x.png"
         },
         color = {
             text_default = {255, 255, 255},
@@ -31,7 +31,8 @@ function love.load()
             background_global = {64, 64, 64},
             background_alt = {30, 30, 30},
             editor_cursor_color = {20, 126, 255},
-            debug = {255, 0, 255}
+            debug = {255, 0, 255},
+            selection = {255, 0, 255}
         },
         font = {
             file = "src/font/monogram.ttf"
@@ -44,13 +45,18 @@ function love.load()
             cursor_draw = "d",
             cursor_erase = "x",
             cursor_fill = "f",
-            cursor_pick = "s",
+            cursor_pick = "t",
 
             cursor_line_left = "ddleft",
             cursor_line_right = "ddright",
             cursor_line_up = "ddup",
             cursor_line_down = "dddown",
             
+            cursor_line_color_left = "dcleft",
+            cursor_line_color_right = "dcright",
+            cursor_line_color_up = "dcup",
+            cursor_line_color_down = "dcdown",
+
             cursor_warp_left = "wwleft",
             cursor_warp_right = "wwright",
             cursor_warp_up = "wwup",
@@ -63,7 +69,9 @@ function love.load()
             
             cursor_change = "_",
             toggle_command = "tab",
-            toggle_grid = "g",
+            select_mode = "s",
+            grab_mode = "g",
+            toggle_grid = "",
             select_palette_color = "cc",
             undo = "u",
             redo = "y"
@@ -72,7 +80,9 @@ function love.load()
             max_undo_steps = 100,
             use_history = true,
             show_grid = false,
-            debug = true
+            debug = true,
+            max_palette_columns = 4,
+            max_palette_rows = 16
         }
     }
 
@@ -105,6 +115,7 @@ function love.load()
     command:hide()
 
     -- Registering text triggers
+    tt:setInputFilter(function() return not command.visible end)
     -- Line fill
     tt:new(config.keys.cursor_line_left, function() editor:fillLine(-1, 0) end)
     tt:new(config.keys.cursor_line_right, function() editor:fillLine(1, 0) end)
@@ -117,11 +128,20 @@ function love.load()
     tt:new(config.keys.cursor_warp_up, function() editor:setCursor(nil, 1) end)
     tt:new(config.keys.cursor_warp_down, function() editor:setCursor(nil, editor.height) end)
 
-    --Cursor warp
+    --Cursor color warp
     tt:new(config.keys.cursor_warp_color_left, function() editor:warpCursor(-1, 0) end)
     tt:new(config.keys.cursor_warp_color_right, function() editor:warpCursor(1, 0) end)
     tt:new(config.keys.cursor_warp_color_up, function() editor:warpCursor(0, -1) end)
     tt:new(config.keys.cursor_warp_color_down, function() editor:warpCursor(0, 1) end)
+
+    -- Cursor warp line
+    tt:new(config.keys.cursor_line_color_left, function() editor:warpLine(-1, 0) end)
+    tt:new(config.keys.cursor_line_color_right, function() editor:warpLine(1, 0) end)
+    tt:new(config.keys.cursor_line_color_up, function() editor:warpLine(0, -1) end)
+    tt:new(config.keys.cursor_line_color_down, function() editor:warpLine(0, 1) end)
+
+    tt:new(config.keys.select_mode, function() editor:setSelectMode() end)
+    tt:new(config.keys.grab_mode, function() editor:setGrabMode() end)
 
     tt:new(config.keys.select_palette_color, function()
         command:show()
