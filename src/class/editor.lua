@@ -112,6 +112,16 @@ function editor:draw()
     lg.print(f("%d x %d %d", self.cursorX, self.cursorY, #self.history), 12, self.safeHeight)
 end
 
+function editor:inBounds(x, y)
+    return x > 0 and x <= self.width and y > 0 and y <= self.height
+end
+
+function editor:setCursor(x, y)
+    x = x or self.cursorX
+    y = y or self.cursorY
+    self.cursorX, self.cursorY = x, y
+end
+
 function editor:moveCursor(x, y)
     self.cursorX = self.cursorX + x
     if self.cursorX < 1 then self.cursorX = 1 elseif self.cursorX > self.width then self.cursorX = self.width end
@@ -125,6 +135,21 @@ function editor:moveCursor(x, y)
         self:drawPixel()
     elseif lk.isDown(config.keys.cursor_erase) then
         self:erasePixel()
+    end
+end
+
+function editor:warpCursor(xStep, yStep, color)
+    color = color or self.cursorPixel
+    local x, y = self.cursorX, self.cursorY
+    while true do
+        x = x + xStep
+        y = y + yStep
+        if not self:inBounds(x, y) or not compareColor(color, self.pixels[y][x]) then
+            self:moveCursor(-xStep, -yStep)
+            break
+        else
+            self:moveCursor(xStep, yStep)
+        end
     end
 end
 
@@ -202,6 +227,16 @@ function editor:fill(x, y, target)
     self:fill(x+1, y, target)
     self:fill(x, y-1, target)
     self:fill(x, y+1, target)
+end
+
+function editor:fillLine(xStep, yStep)
+    local x, y = self.cursorX, self.cursorY
+    while self:inBounds(x, y) do
+        self:drawPixel()
+        x = x + xStep
+        y = y + yStep
+        self.cursorX, self.cursorY = x, y
+    end
 end
 
 function editor:map(func)

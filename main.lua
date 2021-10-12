@@ -45,10 +45,26 @@ function love.load()
             cursor_erase = "x",
             cursor_fill = "f",
             cursor_pick = "s",
+
+            cursor_line_left = "ddleft",
+            cursor_line_right = "ddright",
+            cursor_line_up = "ddup",
+            cursor_line_down = "dddown",
+            
+            cursor_warp_left = "wwleft",
+            cursor_warp_right = "wwright",
+            cursor_warp_up = "wwup",
+            cursor_warp_down = "wwdown",
+
+            cursor_warp_color_left = "wcleft",
+            cursor_warp_color_right = "wcright",
+            cursor_warp_color_up = "wcup",
+            cursor_warp_color_down = "wcdown",
+            
             cursor_change = "_",
             toggle_command = "tab",
             toggle_grid = "g",
-            select_palette_color = "c",
+            select_palette_color = "cc",
             undo = "u",
             redo = "y"
         },
@@ -88,6 +104,30 @@ function love.load()
     command:load()
     command:hide()
 
+    -- Registering text triggers
+    -- Line fill
+    tt:new(config.keys.cursor_line_left, function() editor:fillLine(-1, 0) end)
+    tt:new(config.keys.cursor_line_right, function() editor:fillLine(1, 0) end)
+    tt:new(config.keys.cursor_line_up, function() editor:fillLine(0, -1) end)
+    tt:new(config.keys.cursor_line_down, function() editor:fillLine(0, 1) end)
+
+    --Cursor warp
+    tt:new(config.keys.cursor_warp_left, function() editor:setCursor(1) end)
+    tt:new(config.keys.cursor_warp_right, function() editor:setCursor(editor.width) end)
+    tt:new(config.keys.cursor_warp_up, function() editor:setCursor(nil, 1) end)
+    tt:new(config.keys.cursor_warp_down, function() editor:setCursor(nil, editor.height) end)
+
+    --Cursor warp
+    tt:new(config.keys.cursor_warp_color_left, function() editor:warpCursor(-1, 0) end)
+    tt:new(config.keys.cursor_warp_color_right, function() editor:warpCursor(1, 0) end)
+    tt:new(config.keys.cursor_warp_color_up, function() editor:warpCursor(0, -1) end)
+    tt:new(config.keys.cursor_warp_color_down, function() editor:warpCursor(0, 1) end)
+
+    tt:new(config.keys.select_palette_color, function()
+        command:show()
+        command.command = "p "     
+    end)
+    
     -- Registering commands
     command:register("q", function() love.event.push("quit") end)
     command:register("os", function() love.system.openURL("file://"..love.filesystem.getSaveDirectory()) end)
@@ -193,6 +233,7 @@ function love.textinput(t)
 end
 
 function love.keypressed(key)
+    tt:updateBuffer(key)
     if key == "escape" then love.event.push("quit") end 
     if key == config.keys.toggle_command then command:toggle() end
     if key == "backspace" then command:backspace() end
