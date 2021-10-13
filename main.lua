@@ -58,9 +58,9 @@ function love.load()
             cursor_line_color_down = "dcdown",
 
             cursor_warp_left = "wwleft",
-            cursor_warp_right = "wwright",
-            cursor_warp_up = "wwup",
             cursor_warp_down = "wwdown",
+            cursor_warp_up = "wwup",
+            cursor_warp_right = "wwright",
 
             cursor_warp_color_left = "wcleft",
             cursor_warp_color_right = "wcright",
@@ -73,6 +73,11 @@ function love.load()
             grab_mode = "g",
             toggle_grid = "",
             select_palette_color = "cc",
+            move_palette_cursor = "c",
+            --next_palette_color = "l",
+            --previous_palette_color = "h",
+            --next_palette_row = "j",
+            --previous_palette_row = "k",
             undo = "u",
             redo = "y"
         },
@@ -81,8 +86,10 @@ function love.load()
             use_history = true,
             show_grid = false,
             debug = true,
-            max_palette_columns = 4,
-            max_palette_rows = 16
+            max_palette_columns = 8,
+            max_palette_rows = 32,
+            window_width = 800,
+            window_height = 600
         }
     }
 
@@ -95,6 +102,10 @@ function love.load()
         --ttf.save(config, "config.lua")
         ini.save(config, "config.ini")
     end
+
+    -- Creating window
+    love.window.setMode(config.settings.window_width, config.settings.window_height, {resizable = true})
+    love.window.setTitle("KDP")
 
     -- Loading fonts
     config.font.large = lg.newFont(config.font.file, lg.getWidth() * 0.1)
@@ -142,6 +153,12 @@ function love.load()
 
     tt:new(config.keys.select_mode, function() editor:setSelectMode() end)
     tt:new(config.keys.grab_mode, function() editor:setGrabMode() end)
+
+    -- Palette movement
+    --tt:new(config.keys.next_palette_color, function() editor:selectPaletteColor(editor.selectedColor + 1) end)
+    --tt:new(config.keys.previous_palette_color, function() editor:selectPaletteColor(editor.selectedColor - 1) end)
+    --tt:new(config.keys.next_palette_row, function() editor:selectPaletteColor(editor.selectedColor + config.settings.max_palette_columns) end)
+    --tt:new(config.keys.previous_palette_row, function() editor:selectPaletteColor(editor.selectedColor - config.settings.max_palette_columns) end)
 
     tt:new(config.keys.select_palette_color, function()
         command:show()
@@ -199,8 +216,15 @@ function love.load()
                 file = file.." "
             end
         end
+        if #file < 1 then file = "untitled" end
         file = file..".png"
         editor:save(file)
+    end)
+
+    command:register("export", function(filename, scale)
+        if tonumber(scale) then
+            editor:export(filename, scale)    
+        end
     end)
 
     command:register("load", function(...)
@@ -228,6 +252,13 @@ function love.load()
         end)
     end)
 
+    command:register("noise", function(strength)
+        editor:map(function(pixel)
+            strength = strength or 0.01
+            local off = random() * strength
+            return {pixel[1] + off, pixel[2] + off, pixel[3] + off, pixel[4]} 
+        end)
+    end)
     editor:load()
     editor:new(16, 16)
     editor:loadPalette(config.palette.default)
@@ -248,13 +279,21 @@ function love.draw()
     lg.printf(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight() * 2, lg.getWidth(), "center")
 end
 
+function love.resize(w, h)
+    config.settings.window_width = w
+    config.settings.window_height = h
+    config.font.large = lg.newFont(config.font.file, w * 0.1)
+    config.font.small = lg.newFont(config.font.file, w * 0.04)
+    config.font.tiny = lg.newFont(config.font.file, w * 0.03)
+end
+
 function love.textinput(t)
     command:textinput(t)
 end
 
 function love.keypressed(key)
     tt:updateBuffer(key)
-    if key == "escape" then love.event.push("quit") end 
+    --if key == "escape" then love.event.push("quit") end 
     if key == config.keys.toggle_command then command:toggle() end
     if key == "backspace" then command:backspace() end
     if key == "return" then command:run() end
@@ -262,13 +301,33 @@ function love.keypressed(key)
 
     if not command.visible then
         if key == config.keys.cursor_left then
-            editor:moveCursor(-1, 0)
+            local xStep, yStep = -1, 0
+            if lk.isDown(config.keys.move_palette_cursor) then
+                editor:movePaletteCursor(xStep, yStep)
+            else
+                editor:moveCursor(xStep, yStep)
+            end
         elseif key == config.keys.cursor_right then
-            editor:moveCursor(1, 0)
+            local xStep, yStep = 1, 0
+            if lk.isDown(config.keys.move_palette_cursor) then
+                editor:movePaletteCursor(xStep, yStep)
+            else
+                editor:moveCursor(xStep, yStep)
+            end
         elseif key == config.keys.cursor_up then
-            editor:moveCursor(0, -1)
+            local xStep, yStep = 0, -1
+            if lk.isDown(config.keys.move_palette_cursor) then
+                editor:movePaletteCursor(xStep, yStep)
+            else
+                editor:moveCursor(xStep, yStep)
+            end
         elseif key == config.keys.cursor_down then
-            editor:moveCursor(0, 1)
+            local xStep, yStep = 0, 1
+            if lk.isDown(config.keys.move_palette_cursor) then
+                editor:movePaletteCursor(xStep, yStep)
+            else
+                editor:moveCursor(xStep, yStep)
+            end
         end
 
         if key == config.keys.cursor_draw then

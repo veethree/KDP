@@ -1,5 +1,5 @@
 -- tt.lua: Text triggers for lua
--- Version: v1.0
+-- Version: v1.1
 --
 -- MIT License
 -- 
@@ -53,6 +53,7 @@ function tt:setWaitForTimeout(wait)
     self.waitForTimeout = wait
 end
 
+-- Sets an input filter function
 function tt:setInputFilter(filt)
     assert(type(filt) == "function", "Input filter must be a function!")
     self.inputFilter = filt
@@ -99,7 +100,12 @@ end
 
 -- Create new trigger
 function tt:new(trigger, func, ...)
-    self.bindings[trigger] = {
+    local triggerString = trigger
+    if type(trigger) == "table" then -- If 'trigger' is a table, turn it into a string
+        triggerString = ""
+        for i,v in ipairs(trigger) do triggerString = triggerString..v end
+    end
+    self.bindings[triggerString] = {
         func = func,
         arguments = {...}
     }
@@ -114,7 +120,8 @@ end
 
 -- Update: Should be called per frame, dt is Delta time, the time since the last frame in seconds.
 -- Techincally optional, But if not called, The buffer timeout feature won't work.
-function tt:update(dt)
+function tt:updateTimer(dt)
+    dt = dt or 1
     if #self.buffer > 0 then
         self.tick = self.tick + dt
         if self.tick > self.bufferTimeout then

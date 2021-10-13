@@ -8,7 +8,7 @@ function editor:load()
     self.border = 1
     self.color = {1, 1, 1, 1}
     self.palette = {}
-    self.selected = 1
+    self.selectedColor = 1
     self.history = {}
     self.undoSteps = 0
     self.pixels = false
@@ -65,6 +65,10 @@ end
 
 function editor:draw()
     if self.pixels then
+        self.safeWidth = lg.getWidth() * 0.8
+        self.safeHeight = lg.getHeight() * 0.9
+        self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
+
         local drawWidth = self.width * self.cellSize
         local drawHeight = self.height * self.cellSize
         local xOffset = (self.safeWidth / 2) - (drawWidth / 2)
@@ -98,7 +102,6 @@ function editor:draw()
             lg.setColor(config.color.selection)
             lg.rectangle("line", xOffset + (self.selection.x - 1) * self.cellSize, yOffset + (self.selection.y - 1) * self.cellSize, self.selection.width * self.cellSize, self.selection.height * self.cellSize)
 
-            --lg.rectangle("fill", xOffset + (self.selection.x - 1) * self.cellSize, yOffset + (self.selection.y - 1) * self.cellSize, self.cellSize, self.cellSize) 
         end
 
         if self.grabMode then
@@ -116,35 +119,34 @@ function editor:draw()
         end
     end
 
-    -- Palette
-    --for i,v in ipairs(self.palette) do
-    --    local y = (lg.getHeight() / #self.palette) * (i - 1)
-    --    local xOffset = 12
-    --    if self.selected == i then
-    --        xOffset = 0
-    --    end
-    --    lg.setColor(v)
-    --    lg.rectangle("fill", xOffset + self.safeWidth, y, lg.getWidth() - self.safeWidth, lg.getHeight() / #self.palette)
-    --    lg.setColor(invertColor(v))
-    --    lg.setFont(config.font.tiny)
-    --    lg.print(i, xOffset + self.safeWidth + 12, y)
-    --end
+    lg.setFont(config.font.tiny)
+    local safePaletteWidth = (lg.getWidth() - self.safeWidth) * 0.9
+    local diff = ((lg.getWidth() - self.safeWidth) - safePaletteWidth)
 
-    local x, y = self.safeWidth, 0
-    local cw = (lg.getWidth() - self.safeWidth) / config.settings.max_palette_columns
-    local ch = (lg.getHeight() - self.safeHeight) / config.settings.max_palette_rows
-    local currentRow = 0
+    local x = self.safeWidth + diff
+    local y = 0
+    local cw = safePaletteWidth / config.settings.max_palette_columns
+    local ch = (lg.getHeight() / config.settings.max_palette_rows)
+    local col = 1
     for i,v in ipairs(self.palette) do
         lg.setColor(v)
         lg.rectangle("fill", x, y, cw, ch)
-        y = y + ch
-        currentRow = currentRow + 1
-        if currentRow >= config.settings.max_palette_rows then
-            currentRow = 0
-            y = 0
-            x = x + cw
+        lg.setColor(invertColor(v))
+        if i == self.selectedColor then
+            lg.rectangle("line", x, y, cw, ch)
+        end
+        x = x + cw
+        col = col + 1
+        if col > config.settings.max_palette_columns then
+            --lg.setColor(config.color.text_default)
+            --lg.printf(i-config.settings.max_palette_columns + 1 .."-"..i, -(lg.getWidth() - self.safeWidth) + diff, y, lg.getWidth(), "right")
+            x = self.safeWidth + diff
+            y = y + ch
+            col = 1
         end
     end
+
+    lg.rectangle("fill", x, y, cw, ch)
 
     -- Info
     lg.setColor(config.color.text_alt)
@@ -233,11 +235,19 @@ end
 function editor:selectPaletteColor(index)
     if index < 1 then index = 1 elseif index > #self.palette then index = #self.palette end
     self.color = self.palette[index]
-    self.selected = index
+    self.selectedColor = index
+end
+
+function editor:movePaletteCursor(x, y)
+    self:selectPaletteColor(self.selectedColor + x)
+    if y > 0 then
+        self:selectPaletteColor(self.selectedColor + config.settings.max_palette_columns)
+    elseif y < 0 then
+        self:selectPaletteColor(self.selectedColor - config.settings.max_palette_columns)
+    end
 end
 
 function editor:addToPalette(color, index)
-
     color = color or self.color
     index = index or #self.palette
     index = tonumber(index)
@@ -444,6 +454,19 @@ function editor:save(file)
     data:encode("png", file)
 end
 
+function editor:export(filename, scale)
+    scale = scale or 1
+    local canvas = lg.newCanvas(self.width * scale, self.height * scale)
+    lg.setCanvas(canvas)
+    for y=1, self.height do
+        for x=1, self.width do
+            lg.setColor(self.pixels[y][x])
+            lg.rectangle("fill", (x - 1) * scale, (y - 1) * scale, scale, scale)
+        end
+    end
+    lg.setCanvas()
+    canvas:newImageData():encode("png", filename)
+end
 --<<[[ SETTINGS ]]>>--
 
 function editor:toggleBorder()
