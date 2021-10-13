@@ -32,3 +32,6 @@ Some functions are access via the command palette. To show the command palette y
 
 # Configuration
 I designed this to be highly customizable from the ground up. You can change any of the UI colors, keyboard shortcuts & other settings in the `config.ini` file. Please note that at the moment the config file is a disorganized mess. Thats because internally, The contents of the config file a stored in a key-value pair table, And lua doesnt iterate over them in any specific order when writing it out to a file. I'm working on fixing that.
+
+# Color palettes
+KDP Can load and use color palettes from images, As long as they're at an 1x scale. Such as any palettes on [lospec](https://lospec.com/palette-list)
