@@ -50,3 +50,59 @@ end
 function get_file_name(file_name)
     return string.match(file_name, ".+%."):sub(1, -2)
 end
+
+function getCharBytes(string, char)
+	char = char or 1
+	local b = string.byte(string, char)
+	local bytes = 1
+	if b > 0 and b <= 127 then
+      bytes = 1
+   elseif b >= 194 and b <= 223 then
+      bytes = 2
+   elseif b >= 224 and b <= 239 then
+      bytes = 3
+   elseif b >= 240 and b <= 244 then
+      bytes = 4
+   end
+	return bytes
+end
+
+function len(str)
+	local pos = 1
+	local len = 0
+	while pos <= #str do
+		len = len + 1
+		pos = pos + getCharBytes(str, pos)
+	end
+	return len
+end
+
+function sub(str, s, e)
+	s = s or 1
+	e = e or len(str)
+
+	if s < 1 then s = 1 end
+	if e < 1 then e = len(str) + e + 1 end
+	if e > len(str) then e = len(str) end
+
+	if s > e then return "" end
+
+	local sByte = 0
+	local eByte = 1
+
+	local pos = 1
+	local i = 0
+	while pos <= #str do
+		i = i + 1
+		if i == s then
+			sByte = pos
+		end
+		pos = pos + getCharBytes(str, pos)
+		if i == e then
+			eByte = pos - 1
+			break
+		end
+	end
+
+	return string.sub(str, sByte, eByte)
+end

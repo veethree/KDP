@@ -63,6 +63,9 @@ function cmd:draw()
         end
     end
 
+    self.width = lg.getWidth() - 24
+    self.height = (config.font.small:getAscent() - config.font.small:getDescent())
+    
     lg.setColor(config.color.background_alt)
     lg.rectangle("fill", self.x, self.y, self.width, self.height)
     lg.setColor(config.color.text_default)
@@ -80,7 +83,7 @@ function cmd:textinput(t)
 end
 
 function cmd:backspace()
-    if self.visible and self.input then self.command = self.command:sub(1, -2) end
+    if self.visible and self.input then self.command = sub(self.command, 1, -2) end
 end
 
 function cmd:run()

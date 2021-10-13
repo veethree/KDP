@@ -4,7 +4,7 @@ local min, max = math.min, math.max
 
 function editor:load()
     self.safeWidth = lg.getWidth() * 0.8
-    self.safeHeight = lg.getHeight() * 0.9
+    self.safeHeight = lg.getHeight() * 0.95
     self.border = 1
     self.color = {1, 1, 1, 1}
     self.palette = {}
@@ -17,6 +17,9 @@ function editor:load()
     self.selection = {x = 0, y = 0, originX = 0, originY = 0, width = 0, height = 0, pixels = {}}
     self.selectMode = false
     self.grabMode = false
+    self.message = ""
+    self.messageTimeout = 5
+    self.messageTick = 0
 end
 
 function editor:new(width, height)
@@ -36,6 +39,7 @@ function editor:new(width, height)
     self.cursorX = floor(width / 2)
     self.cursorY = floor(height / 2)
     self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
+    self:print("Created new image")
 end
 
 function editor:loadImage(path)
@@ -60,13 +64,14 @@ function editor:loadImage(path)
     self.cursorY = floor(self.height / 2)
     self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
     self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
+    self:print(f("Loaded image '%s'", path))
     return true
 end
 
 function editor:draw()
     if self.pixels then
         self.safeWidth = lg.getWidth() * 0.8
-        self.safeHeight = lg.getHeight() * 0.9
+        self.safeHeight = lg.getHeight() * 0.95
         self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
 
         local drawWidth = self.width * self.cellSize
@@ -74,8 +79,8 @@ function editor:draw()
         local xOffset = (self.safeWidth / 2) - (drawWidth / 2)
         local yOffset = (self.safeHeight / 2) - (drawHeight / 2)
         -- Border
-        lg.setColor(self.color)
-        lg.setLineWidth(3)
+        lg.setColor(config.color.background_alt)
+        lg.setLineWidth(4)
         lg.rectangle("line", xOffset, yOffset, self.width * self.cellSize, self.height * self.cellSize)
 
         -- Image
@@ -98,14 +103,13 @@ function editor:draw()
         lg.setColor(invertColor(self.color))
         lg.rectangle("line", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
 
+        -- Selection
         if self.selectMode then
             lg.setColor(config.color.selection)
             lg.rectangle("line", xOffset + (self.selection.x - 1) * self.cellSize, yOffset + (self.selection.y - 1) * self.cellSize, self.selection.width * self.cellSize, self.selection.height * self.cellSize)
-
         end
 
         if self.grabMode then
-
             local selectX = (self.selection.x - 1) * self.cellSize
             local selectY = (self.selection.y - 1) * self.cellSize
             for y=1, self.selection.height do 
@@ -119,14 +123,13 @@ function editor:draw()
         end
     end
 
-    lg.setFont(config.font.tiny)
+    -- Color palette
     local safePaletteWidth = (lg.getWidth() - self.safeWidth) * 0.9
     local diff = ((lg.getWidth() - self.safeWidth) - safePaletteWidth)
-
     local x = self.safeWidth + diff
     local y = 0
     local cw = safePaletteWidth / config.settings.max_palette_columns
-    local ch = (lg.getHeight() / config.settings.max_palette_rows)
+    local ch = (self.safeHeight / config.settings.max_palette_rows)
     local col = 1
     for i,v in ipairs(self.palette) do
         lg.setColor(v)
@@ -146,12 +149,35 @@ function editor:draw()
         end
     end
 
-    lg.rectangle("fill", x, y, cw, ch)
-
     -- Info
-    lg.setColor(config.color.text_alt)
+    lg.setColor(self.color)
+    lg.rectangle("fill", 0, self.safeHeight, lg.getWidth(), lg.getHeight() - self.safeHeight)
+    
+    lg.setColor(invertColor(self.color))
     lg.setFont(config.font.tiny)
-    lg.print(f("%d x %d", self.cursorX, self.cursorY), 12, self.safeHeight)
+    -- left
+    lg.print(f("%dx%d", self.cursorX, self.cursorY), 12, self.safeHeight)
+    -- Center
+    lg.printf(f("%s", self.message), 0, self.safeHeight, lg.getWidth(), "center")
+    -- Right
+    lg.printf(f("cmd: %s | %dx%d", tt:getBuffer(), self.width, self.height), -12, self.safeHeight, lg.getWidth(), "right")
+end
+
+function editor:update(dt)
+    if self.tick > 0 then
+        self.tick = self.tick - dt
+        if self.tick < 0 then
+            self:print()
+            self.tick = 0
+        end
+    end
+end
+
+function editor:print(message)
+    self.message = message or ""
+    if message then
+        self.tick = self.messageTimeout
+    end
 end
 
 function editor:inBounds(x, y)
@@ -271,6 +297,8 @@ function editor:loadPalette(path)
         local r, g, b, a = data:getPixel(i, 0)
         self.palette[i + 1] = {r, g, b, a}
     end
+    self:selectPaletteColor(1)
+    self:print(f("Loaded palette '%s'", path))
 end
 
 --<<[[ EDITING ]]>>--
@@ -451,7 +479,7 @@ function editor:save(file)
             data:setPixel(x - 1, y - 1, unpack(self.pixels[y][x]))
         end
     end
-    data:encode("png", file)
+    data:encode("png", "save/"..file)
 end
 
 function editor:export(filename, scale)
@@ -465,8 +493,9 @@ function editor:export(filename, scale)
         end
     end
     lg.setCanvas()
-    canvas:newImageData():encode("png", filename)
-end
+    canvas:newImageData():encode("png", "export/"..filename)
+    self:print(f("Exported image as '%s' at %dx%d", filename, canvas:getWidth(), canvas:getHeight()))
+end 
 --<<[[ SETTINGS ]]>>--
 
 function editor:toggleBorder()

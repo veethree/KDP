@@ -27,9 +27,9 @@ function love.load()
         },
         color = {
             text_default = {255, 255, 255},
-            text_alt = {30, 30, 30},
-            background_global = {64, 64, 64},
-            background_alt = {30, 30, 30},
+            text_alt = {200, 200, 200},
+            background_global = {32, 32, 32},
+            background_alt = {20, 20, 20},
             editor_cursor_color = {20, 126, 255},
             debug = {255, 0, 255},
             selection = {255, 0, 255}
@@ -84,6 +84,7 @@ function love.load()
         settings = {
             max_undo_steps = 100,
             use_history = true,
+            command_timeout = 0.5,
             show_grid = false,
             debug = true,
             max_palette_columns = 8,
@@ -101,6 +102,20 @@ function love.load()
     else
         --ttf.save(config, "config.lua")
         ini.save(config, "config.ini")
+    end
+
+    -- Creating folders
+    if not fs.getInfo("export") then
+        fs.createDirectory("export")
+    end
+    if not fs.getInfo("save") then
+        fs.createDirectory("save")
+    end
+    if not fs.getInfo("palettes") then
+        fs.createDirectory("palettes")
+    end
+    if not fs.getInfo("fonts") then
+        fs.createDirectory("fonts")
     end
 
     -- Creating window
@@ -121,12 +136,14 @@ function love.load()
     lg.setBackgroundColor(config.color.background_global)
     lg.setLineStyle("rough")
     lk.setKeyRepeat(true)
+    tt:setInputFilter(function() return not command.visible end)
+    tt:setBufferTimeout(config.settings.command_timeout)
+    tt:setBufferLength(8)
 
     command:load()
     command:hide()
 
     -- Registering text triggers
-    tt:setInputFilter(function() return not command.visible end)
     -- Line fill
     tt:new(config.keys.cursor_line_left, function() editor:fillLine(-1, 0) end)
     tt:new(config.keys.cursor_line_right, function() editor:fillLine(1, 0) end)
@@ -235,8 +252,25 @@ function love.load()
                 file = file.." "
             end
         end
-        file = file..".png"
-        editor:loadImage(file)
+        file = "save/"..file..".png"
+        if fs.getInfo(file) then
+            editor:loadImage(file)
+        else
+            editor:print(f("Image '%s' does not exists", file))
+        end 
+    end)
+
+    command:register("palette", function(...)
+        local file = ""
+        for i,v in ipairs({...}) do
+            file = file..v
+            if i < #{...} then
+                file = file.." "
+            end
+        end
+        if fs.getInfo("palettes/"..file..".png") then
+            editor:loadPalette("palettes/"..file..".png")
+        end
     end)
 
     -- "shaders"
@@ -268,6 +302,8 @@ end
 
 function love.update(dt)
     smoof:update(dt)
+    tt:updateTimer(dt)
+    editor:update(dt)
 end
 
 function love.draw()
@@ -276,7 +312,7 @@ function love.draw()
 
     lg.setColor(config.color.debug)
     lg.setFont(config.font.tiny)
-    lg.printf(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight() * 2, lg.getWidth(), "center")
+--     lg.printf(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight() * 2, lg.getWidth(), "center")
 end
 
 function love.resize(w, h)
@@ -361,6 +397,8 @@ end
 
 function love.filedropped(file)
     file:open("r")
-    local data = love.image.newImageData(file)
-    editor:loadImage(data)
+    if get_file_type(file:getFilename()) == "png" then
+        local data = love.image.newImageData(file)
+        editor:loadImage(data)
+    end
 end
