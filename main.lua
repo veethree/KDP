@@ -31,7 +31,8 @@ function love.load()
             background_global = {32, 32, 32},
             background_alt = {20, 20, 20},
             editor_cursor_color = {20, 126, 255},
-            debug = {255, 0, 255},
+            debug_text = {255, 0, 255},
+            debug_background = {0, 0, 0, 100},
             selection = {255, 0, 255}
         },
         font = {
@@ -67,30 +68,29 @@ function love.load()
             cursor_warp_color_up = "wcup",
             cursor_warp_color_down = "wcdown",
             
-            cursor_change = "_",
-            toggle_command = "tab",
+            toggle_command_box = "tab",
             select_mode = "s",
-            grab_mode = "g",
-            toggle_grid = "",
+            grab_mode = "h",
+            grab_mode_cut = "g",
+            toggle_grid = "f1",
+            toggle_fullscreen = "f2",
             select_palette_color = "cc",
             move_palette_cursor = "c",
-            --next_palette_color = "l",
-            --previous_palette_color = "h",
-            --next_palette_row = "j",
-            --previous_palette_row = "k",
             undo = "u",
             redo = "y"
         },
         settings = {
             max_undo_steps = 100,
             use_history = true,
-            command_timeout = 0.5,
+            command_timeout = 0.3,
             show_grid = false,
             debug = true,
             max_palette_columns = 8,
             max_palette_rows = 32,
             window_width = 800,
-            window_height = 600
+            window_height = 600,
+            window_fullscreen = false,
+            window_resizable = true
         }
     }
 
@@ -100,32 +100,17 @@ function love.load()
     if fs.getInfo("config.ini") then
         --config = ini.load("config.ini")
     else
-        --ttf.save(config, "config.lua")
-        ini.save(config, "config.ini")
+        --ini.save(config, "config.ini")
     end
 
+    updateWindow()
     -- Creating folders
-    if not fs.getInfo("export") then
-        fs.createDirectory("export")
+    local folder_structure = {"export", "save", "palettes", "fonts"}
+    for _, folder in ipairs(folder_structure) do
+        if not fs.getInfo(folder) then
+            fs.createDirectory(folder)
+        end
     end
-    if not fs.getInfo("save") then
-        fs.createDirectory("save")
-    end
-    if not fs.getInfo("palettes") then
-        fs.createDirectory("palettes")
-    end
-    if not fs.getInfo("fonts") then
-        fs.createDirectory("fonts")
-    end
-
-    -- Creating window
-    love.window.setMode(config.settings.window_width, config.settings.window_height, {resizable = true})
-    love.window.setTitle("KDP")
-
-    -- Loading fonts
-    config.font.large = lg.newFont(config.font.file, lg.getWidth() * 0.1)
-    config.font.small = lg.newFont(config.font.file, lg.getWidth() * 0.04)
-    config.font.tiny = lg.newFont(config.font.file, lg.getWidth() * 0.03)
 
     -- Loading colors
     for k,v in pairs(config.color) do
@@ -136,6 +121,8 @@ function love.load()
     lg.setBackgroundColor(config.color.background_global)
     lg.setLineStyle("rough")
     lk.setKeyRepeat(true)
+
+    -- tt.lua setup
     tt:setInputFilter(function() return not command.visible end)
     tt:setBufferTimeout(config.settings.command_timeout)
     tt:setBufferLength(8)
@@ -168,18 +155,15 @@ function love.load()
     tt:new(config.keys.cursor_line_color_up, function() editor:warpLine(0, -1) end)
     tt:new(config.keys.cursor_line_color_down, function() editor:warpLine(0, 1) end)
 
+    -- Select & grab mode
     tt:new(config.keys.select_mode, function() editor:setSelectMode() end)
     tt:new(config.keys.grab_mode, function() editor:setGrabMode() end)
+    tt:new(config.keys.grab_mode_cut, function() editor:setGrabMode(nil, true) end)
 
-    -- Palette movement
-    --tt:new(config.keys.next_palette_color, function() editor:selectPaletteColor(editor.selectedColor + 1) end)
-    --tt:new(config.keys.previous_palette_color, function() editor:selectPaletteColor(editor.selectedColor - 1) end)
-    --tt:new(config.keys.next_palette_row, function() editor:selectPaletteColor(editor.selectedColor + config.settings.max_palette_columns) end)
-    --tt:new(config.keys.previous_palette_row, function() editor:selectPaletteColor(editor.selectedColor - config.settings.max_palette_columns) end)
 
-    tt:new(config.keys.select_palette_color, function()
-        command:show()
-        command.command = "p "     
+    tt:new(config.keys.toggle_fullscreen, function()
+        config.settings.window_fullscreen = not config.settings.window_fullscreen
+        updateWindow()
     end)
     
     -- Registering commands
@@ -193,7 +177,7 @@ function love.load()
         a = a or 255
         editor.color = {r / 255, g / 255, b / 255, a / 255}
     end)
-    command:register("p", function(index)
+    command:register("selectPaletteColor", function(index)
         editor:selectPaletteColor(tonumber(index))
     end)
     command:register("ap", function(index)
@@ -226,33 +210,29 @@ function love.load()
     end)
 
     command:register("save", function(...)
-        local file = ""
-        for i,v in ipairs({...}) do 
-            file = file..v
-            if i < #{...} then
-                file = file.." "
-            end
+        local file = filenameFromTable({...}, "png")
+        if #file < 1 then 
+            editor:print("No file name provided")  
+            return
         end
-        if #file < 1 then file = "untitled" end
-        file = file..".png"
         editor:save(file)
     end)
 
-    command:register("export", function(filename, scale)
-        if tonumber(scale) then
+    command:register("export", function(...)
+        local args = {...}
+        local scale = args[#args]
+        if tonumber(scale) then remove(args, #args) else scale = 1 end
+        local filename = filenameFromTable(args, "png")
+        if #filename < 1 then
+            editor:print("No file name provided")
+        else
             editor:export(filename, scale)    
         end
     end)
 
     command:register("load", function(...)
-        local file = ""
-        for i,v in ipairs({...}) do 
-            file = file..v
-            if i < #{...} then
-                file = file.." "
-            end
-        end
-        file = "save/"..file..".png"
+        local file = filenameFromTable({...}, "png")
+        file = "save/"..file
         if fs.getInfo(file) then
             editor:loadImage(file)
         else
@@ -260,18 +240,12 @@ function love.load()
         end 
     end)
 
-    command:register("palette", function(...)
-        local file = ""
-        for i,v in ipairs({...}) do
-            file = file..v
-            if i < #{...} then
-                file = file.." "
-            end
+    command:register("loadPalette", function(...)
+        local file = filenameFromTable({...}, "png")
+        if fs.getInfo("palettes/"..file) then
+            editor:loadPalette("palettes/"..file)
         end
-        if fs.getInfo("palettes/"..file..".png") then
-            editor:loadPalette("palettes/"..file..".png")
-        end
-    end)
+end)
 
     -- "shaders"
     command:register("invert", function()
@@ -279,6 +253,7 @@ function love.load()
             return {1 - pixel[1], 1 - pixel[2], 1 - pixel[3], pixel[4]}
         end)
     end)
+
     command:register("grayscale", function()
         editor:map(function(pixel)
             local avg = pixel[1] + pixel[2] + pixel[3] / 3
@@ -294,10 +269,22 @@ function love.load()
         end)
     end)
     editor:load()
-    editor:new(16, 16)
     editor:loadPalette(config.palette.default)
-    --editor:load("all_sprites.png")
+    editor:new(16, 16)
+end
 
+function updateWindow()
+    -- Creating window
+    love.window.setMode(config.settings.window_width, config.settings.window_height, {
+        resizable = config.settings.window_resizable,
+        fullscreen = config.settings.window_fullscreen
+    })
+    love.window.setTitle("KDP")
+
+    -- Loading fonts
+    config.font.large = lg.newFont(config.font.file, lg.getWidth() * 0.1)
+    config.font.small = lg.newFont(config.font.file, lg.getWidth() * 0.04)
+    config.font.tiny = lg.newFont(config.font.file, lg.getWidth() * 0.03)
 end
 
 function love.update(dt)
@@ -310,9 +297,11 @@ function love.draw()
     editor:draw()
     command:draw()
 
-    lg.setColor(config.color.debug)
-    lg.setFont(config.font.tiny)
---     lg.printf(love.timer.getFPS(), 12, lg.getHeight() - config.font.tiny:getHeight() * 2, lg.getWidth(), "center")
+    if config.settings.debug then
+        local str = f("FPS: %d", love.timer.getFPS())
+        lg.setColor(config.color.debug_text)
+        lg.print(str, 12, command.height + command.y)
+    end
 end
 
 function love.resize(w, h)
@@ -321,6 +310,7 @@ function love.resize(w, h)
     config.font.large = lg.newFont(config.font.file, w * 0.1)
     config.font.small = lg.newFont(config.font.file, w * 0.04)
     config.font.tiny = lg.newFont(config.font.file, w * 0.03)
+    command:resize(w, h)
 end
 
 function love.textinput(t)
@@ -329,12 +319,10 @@ end
 
 function love.keypressed(key)
     tt:updateBuffer(key)
-    --if key == "escape" then love.event.push("quit") end 
-    if key == config.keys.toggle_command then command:toggle() end
+    if key == config.keys.toggle_command_box then command:toggle() end
     if key == "backspace" then command:backspace() end
     if key == "return" then command:run() end
     
-
     if not command.visible then
         if key == config.keys.cursor_left then
             local xStep, yStep = -1, 0
@@ -386,7 +374,7 @@ function love.keypressed(key)
             command.command = "color "..r.." "..g.." "..b.." "..a
         elseif key == config.keys.select_palette_color then
             command:show()
-            command.command = "p "
+            command.command = "selectPaletteColor "
         end
 
         if tonumber(key) then
@@ -400,5 +388,7 @@ function love.filedropped(file)
     if get_file_type(file:getFilename()) == "png" then
         local data = love.image.newImageData(file)
         editor:loadImage(data)
+    else
+        editor:print("Usupported file")
     end
 end

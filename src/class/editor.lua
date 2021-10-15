@@ -17,6 +17,7 @@ function editor:load()
     self.selection = {x = 0, y = 0, originX = 0, originY = 0, width = 0, height = 0, pixels = {}}
     self.selectMode = false
     self.grabMode = false
+    self.grabModeCut = false
     self.message = ""
     self.messageTimeout = 5
     self.messageTick = 0
@@ -96,12 +97,14 @@ function editor:draw()
             end
         end
         -- Cursor
-        lg.setColor(self.color)
-        lg.setLineWidth(1)
-        lg.rectangle("fill", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+        if not self.selectMode then
+            lg.setColor(self.color)
+            lg.setLineWidth(1)
+            lg.rectangle("fill", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
 
-        lg.setColor(invertColor(self.color))
-        lg.rectangle("line", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+            lg.setColor(invertColor(self.color))
+            lg.rectangle("line", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+        end
 
         -- Selection
         if self.selectMode then
@@ -116,6 +119,14 @@ function editor:draw()
                 for x=1, self.selection.width do
                     lg.setColor(self.selection.pixels[y][x])
                     lg.rectangle("fill", xOffset + selectX + (x - 1) * self.cellSize, yOffset + selectY + (y - 1) * self.cellSize, self.cellSize, self.cellSize)
+                end
+            end
+            if self.grabModeCut then
+                for y=self.selection.originY, self.selection.originY + self.selection.height - 1 do
+                    for x=self.selection.originX, self.selection.originX + self.selection.width - 1 do
+                        lg.setColor(1, 1, 1, 0.5)
+                        lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize, self.cellSize)
+                    end
                 end
             end
             lg.setColor(config.color.selection)
@@ -158,7 +169,8 @@ function editor:draw()
     -- left
     lg.print(f("%dx%d", self.cursorX, self.cursorY), 12, self.safeHeight)
     -- Center
-    lg.printf(f("%s", self.message), 0, self.safeHeight, lg.getWidth(), "center")
+--    lg.printf(f("%s", self.message), 0, self.safeHeight, lg.getWidth(), "center")
+    lg.printf(f("%d x %d | %d x %d", self.selection.x, self.selection.y, self.selection.width, self.selection.height), 0, self.safeHeight, lg.getWidth(), "center")
     -- Right
     lg.printf(f("cmd: %s | %dx%d", tt:getBuffer(), self.width, self.height), -12, self.safeHeight, lg.getWidth(), "right")
 end
@@ -191,6 +203,7 @@ function editor:setCursor(x, y)
 end
 
 function editor:moveCursor(x, y)
+    -- Basic cursor movement
     self.cursorX = self.cursorX + x
     if self.cursorX < 1 then self.cursorX = 1 elseif self.cursorX > self.width then self.cursorX = self.width end
 
@@ -199,10 +212,11 @@ function editor:moveCursor(x, y)
 
     self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
 
+    -- Select and grab mode
     if self.selectMode and not self.grabMode then
         if self.cursorX < self.selection.originX then
             self.selection.x = self.cursorX
-            self.selection.width = self.selection.originX - self.cursorX
+            self.selection.width = self.selection.originX - self.cursorX + 1
         else
             self.selection.x = self.selection.originX
             self.selection.width = (self.cursorX - self.selection.originX) + 1
@@ -210,7 +224,7 @@ function editor:moveCursor(x, y)
         
         if self.cursorY < self.selection.originY then
             self.selection.y = self.cursorY
-            self.selection.height = self.selection.originY - self.cursorY
+            self.selection.height = self.selection.originY - self.cursorY + 1
         else
             self.selection.y = self.selection.originY
             self.selection.height = (self.cursorY - self.selection.originY) + 1
@@ -306,11 +320,24 @@ end
 function editor:drawPixel()
     self:writeHistory()
     if self.selectMode and self.grabMode then 
+        -- Erasing if cut mode
+        if self.grabModeCut and self.grabMode then
+            for y=self.selection.originY, self.selection.originY + self.selection.height - 1 do
+                for x=self.selection.originX, self.selection.originX + self.selection.width - 1 do
+                    self.pixels[y][x] = {0, 0, 0, 0}
+                end
+            end
+        end
+        -- replacing new pixelz
         for y=self.selection.y, self.selection.y + self.selection.height - 1 do
             for x=self.selection.x, self.selection.x + self.selection.width - 1 do
                 self.pixels[y][x] = copyColor(self.selection.pixels[y - self.selection.y + 1][x - self.selection.x + 1])
             end
         end
+
+
+        self.grabMode = false
+        print("CLEARING")
         self.selectMode = false
         self.grabMode = false
     else
@@ -327,6 +354,12 @@ end
 
 function editor:pickPixel()
     self.color = self.pixels[self.cursorY][self.cursorX]
+    for i,v in ipairs(self.palette) do 
+        if compareColor(self.color, v) then 
+            self:selectPaletteColor(i)
+            break
+        end
+    end
 end
 
 function editor:getPixel()
@@ -385,11 +418,11 @@ end
 function editor:setSelectMode(set)
     set = set or not self.selectMode
     self.selectMode = set
-    self.grabMode = false
     if self.selectMode then
         self.selection.originX, self.selection.originY = self.cursorX, self.cursorY
         self.selection.x, self.selection.y = self.cursorX, self.cursorY
         self.selection.width, self.selection.height = 1, 1
+        self.grabMode = false
         self:updateSelection()
     end
 end
@@ -404,11 +437,19 @@ function editor:updateSelection()
     end
 end
 
-function editor:setGrabMode(set)
+function editor:setGrabMode(set, cut)
     set = set or not self.grabMode
+    cut = cut or false
     
-    if self.selectMode then
+    if self.selectMode and not self.grabMode then
         self.grabMode = set
+        self.grabModeCut = cut
+        if self.selection.originX > self.cursorX then
+            self.cursorX = self.selection.originX
+        end
+        if self.selection.originY > self.cursorY then
+            self.cursorY = self.selection.originY
+        end
     end
 end
 
@@ -437,14 +478,14 @@ function editor:writeHistory()
 end
 
 function editor:undo()
-    if #self.history - self.undoSteps > 0 then
+    if #self.history - self.undoSteps > 0  and not self.selectMode then
         self.pixels = self.history[#self.history - self.undoSteps]
         self.undoSteps = self.undoSteps + 1
     end
 end
 
 function editor:redo()
-    if #self.history - self.undoSteps > 0 then
+    if #self.history - self.undoSteps > 0 and not self.selectMode then
         self.undoSteps = self.undoSteps - 1
         if self.undoSteps < 0 then self.undoSteps = 0 end
         self.pixels = self.history[#self.history - self.undoSteps]
@@ -479,7 +520,12 @@ function editor:save(file)
             data:setPixel(x - 1, y - 1, unpack(self.pixels[y][x]))
         end
     end
-    data:encode("png", "save/"..file)
+    local ok = saveImage(data, "save/"..file)
+    if ok then
+        self:print(f("Saved as '%s'", "save/"..file))
+    else
+        self:print(f("'%s' already exists", "save/"..file))
+    end
 end
 
 function editor:export(filename, scale)
@@ -493,8 +539,12 @@ function editor:export(filename, scale)
         end
     end
     lg.setCanvas()
-    canvas:newImageData():encode("png", "export/"..filename)
-    self:print(f("Exported image as '%s' at %dx%d", filename, canvas:getWidth(), canvas:getHeight()))
+    local ok = saveImage(canvas:newImageData(), "export/"..filename)
+    if ok then
+        self:print(f("Exported image as '%s' at %dx%d", filename, canvas:getWidth(), canvas:getHeight()))
+    else
+        self:print(f("'%s' already exists", "export/"..filename))
+    end
 end 
 --<<[[ SETTINGS ]]>>--
 

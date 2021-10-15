@@ -51,6 +51,27 @@ function get_file_name(file_name)
     return string.match(file_name, ".+%."):sub(1, -2)
 end
 
+function filenameFromTable(tab, ext)
+    ext = ext or "png"
+    local filename = ""
+    if #tab < 1 then return filename end
+    for i,v in ipairs(tab) do
+        filename = filename..v
+        if i < #tab then filename = filename.." " end
+    end
+    filename = filename.."."..ext
+    return filename
+end
+
+function saveImage(image, path)
+    if fs.getInfo(path) then
+       return false
+    else
+        image:encode("png", path)
+        return true
+    end
+end
+
 function getCharBytes(string, char)
 	char = char or 1
 	local b = string.byte(string, char)

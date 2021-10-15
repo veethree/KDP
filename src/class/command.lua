@@ -98,4 +98,9 @@ function cmd:run()
     end
 end
 
+function cmd:resize(w, h)
+    self.hidden_x = self.x
+    self.hidden_y = -self.height
+end
+
 return cmd
