@@ -6,54 +6,85 @@ function editor:load()
     self.safeWidth = lg.getWidth() * 0.8
     self.safeHeight = lg.getHeight() * 0.95
     self.border = 1
-    self.color = {1, 1, 1, 1}
-    self.palette = {}
-    self.selectedColor = 1
+    self.color = {1, 1, 1, 1} -- Selected color
     self.history = {}
     self.undoSteps = 0
     self.pixels = false
-    self.cursorX = 0
-    self.cursorY = 0
-    self.selection = {x = 0, y = 0, originX = 0, originY = 0, width = 0, height = 0, pixels = {}}
-    self.selectMode = false
-    self.grabMode = false
-    self.grabModeCut = false
+
+    -- Message in the bottom bar
     self.message = ""
     self.messageTimeout = 5
     self.messageTick = 0
+
+    self.cursor = {
+        x = 0,
+        y = 0,
+        pixel = config.settings.empty_pixel
+    }
+
+    self.selection = {
+        x = 0, 
+        y = 0, 
+        originX = 0, 
+        originY = 0, 
+        width = 0, 
+        height = 0, 
+        pixels = {}
+    }
+
+    self.palette = {
+        selected = 1,
+        colors = {}
+    }
+
+    -- Loading modes
+    self.modes = {}
+    local modeFiles = fs.getDirectoryItems("src/class/editorModes")
+    for _, file in ipairs(modeFiles) do
+        local name = get_file_name(file)
+        if get_file_type(file) == "lua" then
+            self.modes[name] = fs.load(f("src/class/editorModes/%s", file))()
+        end
+    end
+
+    self:setMode(config.settings.default_mode)
+end
+
+function editor:setMode(mode)
+    assert(self.modes[mode], f("Mode '%s' does not exist", mode))
+    self.mode = self.modes[mode]
+    self.mode:enter(self)
+end
+
+function editor:updateCellSize()
+    self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
 end
 
 function editor:new(width, height)
-    width = tonumber(width)
-    height = tonumber(height)
-    self.width, self.height = width, height
+    self.width, self.height = tonumber(width), tonumber(height)
     
     self.pixels = {}
     for y=1, height do
         self.pixels[y] = {}
         for x=1, width do
-            self.pixels[y][x] = {0, 0, 0, 0}
+            self.pixels[y][x] = config.settings.empty_pixel
         end
     end
-    self.cellSize = min(floor(self.safeWidth / width), floor(self.safeHeight / height))
 
-    self.cursorX = floor(width / 2)
-    self.cursorY = floor(height / 2)
-    self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
+    self:updateCellSize()
+    self:setCursor(width / 2, height / 2)
     self:print("Created new image")
 end
 
-function editor:loadImage(path)
-    self.pixels = {}
-    local data
-    if type(path) == "string" then
-        if not fs.getInfo(path) then return false end
-        data = love.image.newImageData(path)
-    elseif type(path) == "userdata" then
-        data = path
+function editor:loadImageFromPath(path)
+    if not fs.getInfo(path) then
+        self:print(f("Image '%s' does not exist", path))
+        return 
     end
+    local data = love.image.newImageData(path)
     self.width = data:getWidth()
     self.height = data:getHeight()
+    self.pixels = {}
     for y=1, self.height do
         self.pixels[y] = {}
         for x=1, self.width do
@@ -61,19 +92,33 @@ function editor:loadImage(path)
             self.pixels[y][x] = {r, g, b, a}
         end
     end
-    self.cursorX = floor(self.width / 2)
-    self.cursorY = floor(self.height / 2)
-    self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
-    self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
+    self:updateCellSize()
+    self:setCursor(self.width / 2, self.height / 2)
     self:print(f("Loaded image '%s'", path))
-    return true
+end
+
+function editor:loadImageFromData(data, path)
+    local data = data
+    self.width = data:getWidth()
+    self.height = data:getHeight()
+    self.pixels = {}
+    for y=1, self.height do
+        self.pixels[y] = {}
+        for x=1, self.width do
+            local r, g, b, a = data:getPixel(x - 1, y - 1)
+            self.pixels[y][x] = {r, g, b, a}
+        end
+    end
+    self:updateCellSize()
+    self:setCursor(self.width / 2, self.height / 2)
+    self:print(f("Loaded image '%s'", path))
 end
 
 function editor:draw()
     if self.pixels then
         self.safeWidth = lg.getWidth() * 0.8
         self.safeHeight = lg.getHeight() * 0.95
-        self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
+        self:updateCellSize()
 
         local drawWidth = self.width * self.cellSize
         local drawHeight = self.height * self.cellSize
@@ -81,7 +126,7 @@ function editor:draw()
         local yOffset = (self.safeHeight / 2) - (drawHeight / 2)
         -- Border
         lg.setColor(config.color.background_alt)
-        lg.setLineWidth(4)
+        lg.setLineWidth(config.settings.editor_border_width)
         lg.rectangle("line", xOffset, yOffset, self.width * self.cellSize, self.height * self.cellSize)
 
         -- Image
@@ -96,81 +141,45 @@ function editor:draw()
                 lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - border, self.cellSize - border)
             end
         end
-        -- Cursor
-        if not self.selectMode then
-            lg.setColor(self.color)
-            lg.setLineWidth(1)
-            lg.rectangle("fill", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
 
-            lg.setColor(invertColor(self.color))
-            lg.rectangle("line", xOffset + (self.cursorX - 1) * self.cellSize, yOffset + (self.cursorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
-        end
-
-        -- Selection
-        if self.selectMode then
-            lg.setColor(config.color.selection)
-            lg.rectangle("line", xOffset + (self.selection.x - 1) * self.cellSize, yOffset + (self.selection.y - 1) * self.cellSize, self.selection.width * self.cellSize, self.selection.height * self.cellSize)
-        end
-
-        if self.grabMode then
-            local selectX = (self.selection.x - 1) * self.cellSize
-            local selectY = (self.selection.y - 1) * self.cellSize
-            for y=1, self.selection.height do 
-                for x=1, self.selection.width do
-                    lg.setColor(self.selection.pixels[y][x])
-                    lg.rectangle("fill", xOffset + selectX + (x - 1) * self.cellSize, yOffset + selectY + (y - 1) * self.cellSize, self.cellSize, self.cellSize)
-                end
-            end
-            if self.grabModeCut then
-                for y=self.selection.originY, self.selection.originY + self.selection.height - 1 do
-                    for x=self.selection.originX, self.selection.originX + self.selection.width - 1 do
-                        lg.setColor(1, 1, 1, 0.5)
-                        lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize, self.cellSize)
-                    end
-                end
-            end
-            lg.setColor(config.color.selection)
-            lg.rectangle("line", xOffset + selectX, yOffset + selectY, self.selection.width * self.cellSize, self.selection.height * self.cellSize)
-        end
+        self.mode:draw(xOffset, yOffset)
     end
 
     -- Color palette
-    local safePaletteWidth = (lg.getWidth() - self.safeWidth) * 0.9
-    local diff = ((lg.getWidth() - self.safeWidth) - safePaletteWidth)
-    local x = self.safeWidth + diff
+    local x = self.safeWidth 
     local y = 0
-    local cw = safePaletteWidth / config.settings.max_palette_columns
-    local ch = (self.safeHeight / config.settings.max_palette_rows)
-    local col = 1
-    for i,v in ipairs(self.palette) do
+    local cellWidth = (lg.getWidth() - self.safeWidth) / config.settings.max_palette_columns
+    local cellHeight = (self.safeHeight / config.settings.max_palette_rows)
+    local column = 1
+    for i,v in ipairs(self.palette.colors) do
         lg.setColor(v)
-        lg.rectangle("fill", x, y, cw, ch)
+        lg.rectangle("fill", x, y, cellWidth, cellHeight)
         lg.setColor(invertColor(v))
-        if i == self.selectedColor then
-            lg.rectangle("line", x, y, cw, ch)
+        if i == self.palette.selected then
+            lg.rectangle("line", x, y, cellWidth, cellHeight)
         end
-        x = x + cw
-        col = col + 1
-        if col > config.settings.max_palette_columns then
-            --lg.setColor(config.color.text_default)
-            --lg.printf(i-config.settings.max_palette_columns + 1 .."-"..i, -(lg.getWidth() - self.safeWidth) + diff, y, lg.getWidth(), "right")
-            x = self.safeWidth + diff
-            y = y + ch
-            col = 1
+        x = x + cellWidth
+        column = column + 1
+        if column > config.settings.max_palette_columns then
+            x = self.safeWidth 
+            y = y + cellHeight
+            column = 1
         end
     end
 
-    -- Info
+    -- Info panel
     lg.setColor(self.color)
     lg.rectangle("fill", 0, self.safeHeight, lg.getWidth(), lg.getHeight() - self.safeHeight)
     
     lg.setColor(invertColor(self.color))
     lg.setFont(config.font.tiny)
+
     -- left
-    lg.print(f("%dx%d", self.cursorX, self.cursorY), 12, self.safeHeight)
+    lg.print(f("%dx%d", self.cursor.x, self.cursor.y), 12, self.safeHeight)
+
     -- Center
---    lg.printf(f("%s", self.message), 0, self.safeHeight, lg.getWidth(), "center")
-    lg.printf(f("%d x %d | %d x %d", self.selection.x, self.selection.y, self.selection.width, self.selection.height), 0, self.safeHeight, lg.getWidth(), "center")
+    lg.printf(f("%s", self.message), 0, self.safeHeight, lg.getWidth(), "center")
+
     -- Right
     lg.printf(f("cmd: %s | %dx%d", tt:getBuffer(), self.width, self.height), -12, self.safeHeight, lg.getWidth(), "right")
 end
@@ -197,119 +206,51 @@ function editor:inBounds(x, y)
 end
 
 function editor:setCursor(x, y)
-    x = x or self.cursorX
-    y = y or self.cursorY
-    self.cursorX, self.cursorY = x, y
+    x = x or self.cursor.x
+    y = y or self.cursor.y
+    self.cursor.x, self.cursor.y = floor(x), floor(y)
+    self.cursor.pixel = self.pixels[self.cursor.y][self.cursor.x]
 end
 
 function editor:moveCursor(x, y)
     -- Basic cursor movement
-    self.cursorX = self.cursorX + x
-    if self.cursorX < 1 then self.cursorX = 1 elseif self.cursorX > self.width then self.cursorX = self.width end
+    self.cursor.x = self.cursor.x + x
+    if self.cursor.x < 1 then self.cursor.x = 1 elseif self.cursor.x > self.width then self.cursor.x = self.width end
 
-    self.cursorY = self.cursorY + y
-    if self.cursorY < 1 then self.cursorY = 1 elseif self.cursorY > self.width then self.cursorY = self.width end
+    self.cursor.y = self.cursor.y + y
+    if self.cursor.y < 1 then self.cursor.y = 1 elseif self.cursor.y > self.width then self.cursor.y = self.width end
 
-    self.cursorPixel = self.pixels[self.cursorY][self.cursorX]
+    self.cursorPixel = self.pixels[self.cursor.y][self.cursor.x]
 
-    -- Select and grab mode
-    if self.selectMode and not self.grabMode then
-        if self.cursorX < self.selection.originX then
-            self.selection.x = self.cursorX
-            self.selection.width = self.selection.originX - self.cursorX + 1
-        else
-            self.selection.x = self.selection.originX
-            self.selection.width = (self.cursorX - self.selection.originX) + 1
-        end
-        
-        if self.cursorY < self.selection.originY then
-            self.selection.y = self.cursorY
-            self.selection.height = self.selection.originY - self.cursorY + 1
-        else
-            self.selection.y = self.selection.originY
-            self.selection.height = (self.cursorY - self.selection.originY) + 1
-        end
-
-        if self.selection.width == 0 then self.selection.width = 1 end
-        if self.selection.height == 0 then self.selection.height = 1 end
-        self:updateSelection()
-    elseif self.grabMode then
-        self.selection.x = self.cursorX - (self.selection.width - 1)
-        self.selection.y = self.cursorY - (self.selection.height - 1)
-
-        if self.selection.x < 1 then
-            self.selection.x = 1
-            self.cursorX = self.selection.width
-        end
-
-        if self.selection.y < 1 then
-            self.selection.y = 1
-            self.cursorY = self.selection.height
-        end
-    end
-
-    if lk.isDown(config.keys.cursor_draw) then
-        self:drawPixel()
-    elseif lk.isDown(config.keys.cursor_erase) then
-        self:erasePixel()
-    end
+    -- updating mode
+    self.mode:moveCursor(self.cursor.x, self.cursor.y)
 end
-
-function editor:warpCursor(xStep, yStep, color)
-    color = color or self.cursorPixel
-    local x, y = self.cursorX, self.cursorY
-    while true do
-        x = x + xStep
-        y = y + yStep
-        if not self:inBounds(x, y) or not compareColor(color, self.pixels[y][x]) then
-            self:moveCursor(-xStep, -yStep)
-            break
-        else
-            self:moveCursor(xStep, yStep)
-        end
-    end
-end
-
 --<<[[ PALETTE ]]>>--
 
 function editor:selectPaletteColor(index)
-    if index < 1 then index = 1 elseif index > #self.palette then index = #self.palette end
-    self.color = self.palette[index]
-    self.selectedColor = index
+    if index < 1 then index = 1 elseif index > #self.palette.colors then index = #self.palette.colors end
+    self.color = self.palette.colors[index]
+    self.palette.selected = index
 end
 
 function editor:movePaletteCursor(x, y)
-    self:selectPaletteColor(self.selectedColor + x)
+    self:selectPaletteColor(self.palette.selected + x)
     if y > 0 then
-        self:selectPaletteColor(self.selectedColor + config.settings.max_palette_columns)
+        self:selectPaletteColor(self.palette.selected + config.settings.max_palette_columns)
     elseif y < 0 then
-        self:selectPaletteColor(self.selectedColor - config.settings.max_palette_columns)
+        self:selectPaletteColor(self.palette.selected - config.settings.max_palette_columns)
     end
-end
-
-function editor:addToPalette(color, index)
-    color = color or self.color
-    index = index or #self.palette
-    index = tonumber(index)
-    for i,v in ipairs(self.palette) do
-        if compareColor(color, v) then
-            return
-        end
-    end
-    if index > #self.palette then
-        for i=#self.palette, #self.palette + (index - #self.palette) do
-            self.palette[i] = {0, 0, 0, 0}
-        end
-    end
-    insert(self.palette, index, color)
 end
 
 function editor:loadPalette(path)
-    self.palette = {}
+    self.palette.colors = {}
     local data = love.image.newImageData(path)
-    for i=0, data:getWidth() - 1 do
-        local r, g, b, a = data:getPixel(i, 0)
-        self.palette[i + 1] = {r, g, b, a}
+    for y=0, data:getHeight() - 1 do
+        for x=0, data:getWidth() - 1 do
+            local i = (y * (data:getHeight() - 1)) + x + 1
+            local r, g, b, a = data:getPixel(x, y)
+            self.palette.colors[i] = {r, g, b, a}
+        end
     end
     self:selectPaletteColor(1)
     self:print(f("Loaded palette '%s'", path))
@@ -317,44 +258,20 @@ end
 
 --<<[[ EDITING ]]>>--
 
-function editor:drawPixel()
-    self:writeHistory()
-    if self.selectMode and self.grabMode then 
-        -- Erasing if cut mode
-        if self.grabModeCut and self.grabMode then
-            for y=self.selection.originY, self.selection.originY + self.selection.height - 1 do
-                for x=self.selection.originX, self.selection.originX + self.selection.width - 1 do
-                    self.pixels[y][x] = {0, 0, 0, 0}
-                end
-            end
-        end
-        -- replacing new pixelz
-        for y=self.selection.y, self.selection.y + self.selection.height - 1 do
-            for x=self.selection.x, self.selection.x + self.selection.width - 1 do
-                self.pixels[y][x] = copyColor(self.selection.pixels[y - self.selection.y + 1][x - self.selection.x + 1])
-            end
-        end
-
-
-        self.grabMode = false
-        print("CLEARING")
-        self.selectMode = false
-        self.grabMode = false
-    else
-        self.pixels[self.cursorY][self.cursorX] = copyColor(self.color)
-    end
+function editor:drawPixel(history)
+    history = history or true
+    if history then self:writeHistory() end
+    self.pixels[self.cursor.y][self.cursor.x] = copyColor(self.color)
 end
 
 function editor:erasePixel()
-    if self.selectMode then return end
     self:writeHistory()
-
-    self.pixels[self.cursorY][self.cursorX] = {0, 0, 0, 0}
+    self.pixels[self.cursor.y][self.cursor.x] = {0, 0, 0, 0}
 end
 
 function editor:pickPixel()
-    self.color = self.pixels[self.cursorY][self.cursorX]
-    for i,v in ipairs(self.palette) do 
+    self.color = self.pixels[self.cursor.y][self.cursor.x]
+    for i,v in ipairs(self.palette.colors) do 
         if compareColor(self.color, v) then 
             self:selectPaletteColor(i)
             break
@@ -363,19 +280,17 @@ function editor:pickPixel()
 end
 
 function editor:getPixel()
-    return self.pixels[self.cursorY][self.cursorX]
+    return self.pixels[self.cursor.y][self.cursor.x]
 end
 
 function editor:fill(x, y, target)
-    if self.selectMode then return end
     if not target then self:writeHistory() end
     
-    x = x or self.cursorX
-    y = y or self.cursorY
+    x = x or self.cursor.x
+    y = y or self.cursor.y
     target = target or self.pixels[y][x]
 
-    if x < 1 or x > self.width or y < 1 or y > self.height 
-    or not compareColor(self.pixels[y][x], target) or compareColor(self.pixels[y][x], self.color) then
+    if not self:inBounds(x, y) or not compareColor(self.pixels[y][x], target) or compareColor(self.pixels[y][x], self.color) then
         return
     end
 
@@ -388,8 +303,7 @@ function editor:fill(x, y, target)
 end
 
 function editor:fillLine(xStep, yStep)
-    if self.selectMode then return end
-    local x, y = self.cursorX, self.cursorY
+    local x, y = self.cursor.x, self.cursor.y
     while self:inBounds(x, y) do
         self:drawPixel()
         x = x + xStep
@@ -398,10 +312,11 @@ function editor:fillLine(xStep, yStep)
     end
 end
 
-function editor:warpLine(xStep, yStep, color)
-    if self.selectMode then return end
-    color = color or self.cursorPixel
-    local x, y = self.cursorX, self.cursorY
+-- Warps cursor in a direction until the color changes
+function editor:warpCursor(xStep, yStep, fill)
+    fill = fill or false
+    local color = self.cursorPixel
+    local x, y = self.cursor.x, self.cursor.y
     while true do
         x = x + xStep
         y = y + yStep
@@ -410,7 +325,7 @@ function editor:warpLine(xStep, yStep, color)
             break
         else
             self:moveCursor(xStep, yStep)
-            self:drawPixel()
+            if fill then self:drawPixel() end
         end
     end
 end
@@ -419,8 +334,8 @@ function editor:setSelectMode(set)
     set = set or not self.selectMode
     self.selectMode = set
     if self.selectMode then
-        self.selection.originX, self.selection.originY = self.cursorX, self.cursorY
-        self.selection.x, self.selection.y = self.cursorX, self.cursorY
+        self.selection.originX, self.selection.originY = self.cursor.x, self.cursor.y
+        self.selection.x, self.selection.y = self.cursor.x, self.cursor.y
         self.selection.width, self.selection.height = 1, 1
         self.grabMode = false
         self:updateSelection()
@@ -444,11 +359,11 @@ function editor:setGrabMode(set, cut)
     if self.selectMode and not self.grabMode then
         self.grabMode = set
         self.grabModeCut = cut
-        if self.selection.originX > self.cursorX then
-            self.cursorX = self.selection.originX
+        if self.selection.originX > self.cursor.x then
+            self.cursor.x = self.selection.originX
         end
-        if self.selection.originY > self.cursorY then
-            self.cursorY = self.selection.originY
+        if self.selection.originY > self.cursor.y then
+            self.cursor.y = self.selection.originY
         end
     end
 end
@@ -550,6 +465,22 @@ end
 
 function editor:toggleBorder()
     if self.border == 1 then self.border = 0 else self.border = 1 end
+end
+
+function editor:keypressed(key)
+    if not lk.isDown(config.keys.move_palette_cursor) then
+        if key == config.keys.cursor_left then
+           self:moveCursor(-1, 0)
+        elseif key == config.keys.cursor_right then
+           self:moveCursor(1, 0)
+        elseif key == config.keys.cursor_up then
+           self:moveCursor(0, -1)
+        elseif key == config.keys.cursor_down then
+           self:moveCursor(0, 1)
+        end
+    end
+    self.mode:keypressed(key)
+
 end
 
 return editor

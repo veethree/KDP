@@ -22,6 +22,7 @@ end
 
 function compareColor(a, b)
     local same = true
+    if not a or not b then return end
     for i,v in ipairs(a) do
         if v ~= b[i] then
             same = false
@@ -44,7 +45,8 @@ function requireFolder(folder)
 end
 
 function get_file_type(file_name)
-    return string.match(file_name, "%..+"):sub(2)
+    local ext = string.match(file_name, "%.%w+$")
+    if ext then return ext:sub(2) end
 end
 
 function get_file_name(file_name)

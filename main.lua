@@ -48,10 +48,10 @@ function love.load()
             cursor_fill = "f",
             cursor_pick = "t",
 
-            cursor_line_left = "ddleft",
-            cursor_line_right = "ddright",
-            cursor_line_up = "ddup",
-            cursor_line_down = "dddown",
+            cursor_line_left = "wdleft",
+            cursor_line_right = "wdright",
+            cursor_line_up = "wdup",
+            cursor_line_down = "wddown",
             
             cursor_line_color_left = "dcleft",
             cursor_line_color_right = "dcright",
@@ -75,18 +75,26 @@ function love.load()
             toggle_grid = "f1",
             toggle_fullscreen = "f2",
             select_palette_color = "cc",
-            move_palette_cursor = "c",
+            move_palette_cursor = "lctrl",
             undo = "u",
             redo = "y"
         },
         settings = {
-            max_undo_steps = 100,
             use_history = true,
+            max_undo_steps = 100,
+            
             command_timeout = 0.3,
+
+            default_mode = "drawMode",
+            editor_border_width = 4,
+            empty_pixel = {0, 0, 0, 0},
+            
             show_grid = false,
             debug = true,
+
             max_palette_columns = 8,
             max_palette_rows = 32,
+            
             window_width = 800,
             window_height = 600,
             window_fullscreen = false,
@@ -149,11 +157,11 @@ function love.load()
     tt:new(config.keys.cursor_warp_color_up, function() editor:warpCursor(0, -1) end)
     tt:new(config.keys.cursor_warp_color_down, function() editor:warpCursor(0, 1) end)
 
-    -- Cursor warp line
-    tt:new(config.keys.cursor_line_color_left, function() editor:warpLine(-1, 0) end)
-    tt:new(config.keys.cursor_line_color_right, function() editor:warpLine(1, 0) end)
-    tt:new(config.keys.cursor_line_color_up, function() editor:warpLine(0, -1) end)
-    tt:new(config.keys.cursor_line_color_down, function() editor:warpLine(0, 1) end)
+    -- Cursor warp fill
+    tt:new(config.keys.cursor_line_color_left, function() editor:warpCursor(-1, 0, true) end)
+    tt:new(config.keys.cursor_line_color_right, function() editor:warpCursor(1, 0, true) end)
+    tt:new(config.keys.cursor_line_color_up, function() editor:warpCursor(0, -1, true) end)
+    tt:new(config.keys.cursor_line_color_down, function() editor:warpCursor(0, 1, true) end)
 
     -- Select & grab mode
     tt:new(config.keys.select_mode, function() editor:setSelectMode() end)
@@ -231,13 +239,11 @@ function love.load()
     end)
 
     command:register("load", function(...)
-        local file = filenameFromTable({...}, "png")
-        file = "save/"..file
-        if fs.getInfo(file) then
-            editor:loadImage(file)
-        else
-            editor:print(f("Image '%s' does not exists", file))
-        end 
+        local path = filenameFromTable({...}, "png")
+        if #path > 0 then
+            path = "save/"..path
+            editor:loadImageFromPath(path)
+        end
     end)
 
     command:register("loadPalette", function(...)
@@ -324,49 +330,9 @@ function love.keypressed(key)
     if key == "return" then command:run() end
     
     if not command.visible then
-        if key == config.keys.cursor_left then
-            local xStep, yStep = -1, 0
-            if lk.isDown(config.keys.move_palette_cursor) then
-                editor:movePaletteCursor(xStep, yStep)
-            else
-                editor:moveCursor(xStep, yStep)
-            end
-        elseif key == config.keys.cursor_right then
-            local xStep, yStep = 1, 0
-            if lk.isDown(config.keys.move_palette_cursor) then
-                editor:movePaletteCursor(xStep, yStep)
-            else
-                editor:moveCursor(xStep, yStep)
-            end
-        elseif key == config.keys.cursor_up then
-            local xStep, yStep = 0, -1
-            if lk.isDown(config.keys.move_palette_cursor) then
-                editor:movePaletteCursor(xStep, yStep)
-            else
-                editor:moveCursor(xStep, yStep)
-            end
-        elseif key == config.keys.cursor_down then
-            local xStep, yStep = 0, 1
-            if lk.isDown(config.keys.move_palette_cursor) then
-                editor:movePaletteCursor(xStep, yStep)
-            else
-                editor:moveCursor(xStep, yStep)
-            end
-        end
+        editor:keypressed(key)
 
-        if key == config.keys.cursor_draw then
-            editor:drawPixel()
-        elseif key == config.keys.cursor_erase then
-            editor:erasePixel()
-        elseif key == config.keys.cursor_fill then
-            editor:fill()
-        elseif key == config.keys.cursor_pick then
-            editor:pickPixel()
-        elseif key == config.keys.undo then
-            editor:undo()
-        elseif key == config.keys.redo then
-            editor:redo()
-        elseif key == config.keys.toggle_grid then 
+        if key == config.keys.toggle_grid then 
             config.settings.show_grid = not config.settings.show_grid
         elseif key == config.keys.cursor_change then
             local r, g, b, a = unpack(editor:getPixel())
@@ -387,8 +353,8 @@ function love.filedropped(file)
     file:open("r")
     if get_file_type(file:getFilename()) == "png" then
         local data = love.image.newImageData(file)
-        editor:loadImage(data)
+        editor:loadImageFromData(data, file:getFilename())
     else
-        editor:print("Usupported file")
+        editor:print("Unsupported file")
     end
 end
