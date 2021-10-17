@@ -34,7 +34,8 @@ function love.load()
             editor_cursor_color = {20, 126, 255},
             debug_text = {255, 0, 255},
             debug_background = {0, 0, 0, 100},
-            selection = {255, 0, 255}
+            selection = {255, 0, 255},
+            mirror = {91, 156, 222}
         },
         font = {
             file = "src/font/monogram.ttf"
@@ -68,6 +69,10 @@ function love.load()
             cursor_warp_color_right = "wcright",
             cursor_warp_color_up = "wcup",
             cursor_warp_color_down = "wcdown",
+
+            horizontal_mirror = "mh",
+            vertical_mirror = "mv",
+            clear_mirror = "mm",
             
             toggle_command_box = "tab",
             select_mode = "s",
@@ -107,7 +112,7 @@ function love.load()
     fs.setIdentity(NAME)
     config = defaultConfig
     if fs.getInfo("config.ini") then
-        --config = ini.load("config.ini")
+        config = ini.load("config.ini")
     else
         ini.save(config, "config.ini")
     end
@@ -232,5 +237,6 @@ function love.filedropped(file)
 end
 
 function love.quit()
+    purgeConfig()
     ini.save(config, "config.ini")
 end

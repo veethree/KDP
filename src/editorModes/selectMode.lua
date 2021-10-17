@@ -61,6 +61,7 @@ end
 function selectMode:draw(xOffset, yOffset)
     local cellSize = self.editor.cellSize
     lg.setColor(config.color.selection)
+    lg.setLineWidth(1)
     lg.rectangle("line", xOffset + self.x * cellSize, yOffset + self.y * cellSize, self.width * cellSize, self.height * cellSize)
 
     --lg.rectangle("fill", xOffset + self.x * cellSize, yOffset + self.y * cellSize, cellSize, cellSize )
@@ -71,13 +72,13 @@ function selectMode:draw(xOffset, yOffset)
     --         "normal: "..self.x.."x"..self.y.."\n"..
     --         "width : "..self.width.."x".. self.height, 100, 100)
 
-    local scale = 4
-    for y=1, self.height do
-        for x=1, self.width do
-            lg.setColor(self.pixels[y][x])
-            lg.rectangle("fill", x * scale, 100 + y * scale, scale, scale)
-        end
-    end
+    --local scale = 4
+    --for y=1, self.height do
+    --    for x=1, self.width do
+    --        lg.setColor(self.pixels[y][x])
+    --        lg.rectangle("fill", x * scale, 100 + y * scale, scale, scale)
+    --    end
+    --end
 end
 
 function selectMode:keypressed(key)

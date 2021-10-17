@@ -12,6 +12,15 @@ tt:setBufferLength(8)
 
 tt:new(config.keys.cut_mode, function() editor:setMode("cutMode") end)
 
+-- Mirroring
+
+tt:new(config.keys.horizontal_mirror, function() editor:setHorizontalMirror() end)
+tt:new(config.keys.vertical_mirror, function() editor:setVerticalMirror() end)
+tt:new(config.keys.clear_mirror, function()
+    editor.verticalMirror = false
+    editor.horizontalMirror = false
+end)
+
 -- Line fill
 tt:new(config.keys.cursor_line_left, function() editor:fillLine(-1, 0) end)
 tt:new(config.keys.cursor_line_right, function() editor:fillLine(1, 0) end)

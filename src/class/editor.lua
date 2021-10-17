@@ -11,6 +11,9 @@ function editor:load()
     self.undoSteps = 0
     self.pixels = false
 
+    self.horizontalMirror = false
+    self.verticalMirror = false
+
     -- Message in the bottom bar
     self.message = ""
     self.messageTimeout = 5
@@ -137,7 +140,21 @@ function editor:draw()
                 lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - border, self.cellSize - border)
             end
         end
+        
+        -- Mirror
+        if self.horizontalMirror then
+            lg.setColor(config.color.mirror)
+            lg.print("HORI MIRR", 12, 12)
+            local x = xOffset + (self.horizontalMirror - 1) * self.cellSize
+            lg.rectangle("line", x, yOffset, self.cellSize, yOffset + self.height * self.cellSize)
+        end
 
+        if self.verticalMirror then
+            lg.setColor(config.color.mirror)
+            lg.print("VERT MIRR", 12, 12)
+            local y = yOffset + (self.verticalMirror - 1) * self.cellSize
+            lg.rectangle("line", xOffset, y, yOffset + self.width * self.cellSize, self.cellSize)
+        end
         self.mode:draw(xOffset, yOffset)
 
         --lg.setColor(1, 0, 0)
@@ -150,6 +167,7 @@ function editor:draw()
     local cellWidth = (lg.getWidth() - self.safeWidth) / config.settings.max_palette_columns
     local cellHeight = (self.safeHeight / config.settings.max_palette_rows)
     local column = 1
+    lg.setLineWidth(1)
     for i,v in ipairs(self.palette.colors) do
         lg.setColor(v)
         lg.rectangle("fill", x, y, cellWidth, cellHeight)
@@ -202,6 +220,22 @@ end
 
 function editor:inBounds(x, y)
     return x > 0 and x <= self.width and y > 0 and y <= self.height
+end
+
+function editor:setHorizontalMirror()
+    if self.horizontalMirror then
+        self.horizontalMirror = false
+    else
+        self.horizontalMirror = self.cursor.x
+    end
+end
+
+function editor:setVerticalMirror()
+    if self.verticalMirror then
+        self.verticalMirror = false
+    else
+        self.verticalMirror = self.cursor.y
+    end
 end
 
 function editor:setCursor(x, y)
@@ -259,9 +293,21 @@ end
 
 function editor:drawPixel(history)
     if self.activeMode == "drawMode" then
-        history = history or true
+        if history == nil then history = true end
         if history then self:writeHistory() end
         self.pixels[self.cursor.y][self.cursor.x] = copyColor(self.color)
+        if self.horizontalMirror then
+            local mirrorX = self.horizontalMirror - self.cursor.x + self.horizontalMirror
+            if self:inBounds(mirrorX, self.cursor.y) then
+                self.pixels[self.cursor.y][mirrorX] = copyColor(self.color)
+            end
+        end
+        if self.verticalMirror then
+            local mirrorY = self.verticalMirror - self.cursor.y + self.verticalMirror
+            if self:inBounds(self.cursor.x, mirrorY) then
+                self.pixels[mirrorY][self.cursor.x] = copyColor(self.color)
+            end
+        end
     end
 end
 
@@ -317,9 +363,10 @@ function editor:fill(x, y, target)
 end
 
 function editor:fillLine(xStep, yStep)
+    self:writeHistory()
     local x, y = self.cursor.x, self.cursor.y
     while self:inBounds(x, y) do
-        self:drawPixel()
+        self:drawPixel(false)
         x = x + xStep
         y = y + yStep
         self:moveCursor(xStep, yStep)
@@ -328,6 +375,7 @@ end
 
 -- Warps cursor in a direction until the color changes
 function editor:warpCursor(xStep, yStep, fill)
+    self:writeHistory()
     fill = fill or false
     local color = self.cursorPixel
     local x, y = self.cursor.x, self.cursor.y
@@ -339,7 +387,7 @@ function editor:warpCursor(xStep, yStep, fill)
             break
         else
             self:moveCursor(xStep, yStep)
-            if fill then self:drawPixel() end
+            if fill then self:drawPixel(false) end
         end
     end
 end
