@@ -1,5 +1,6 @@
 # KDP
 KDP is entirely **k**eyboard **d**riven **p**ixel art editor.
+![screenshot](https://github.com/veethree/KDP/blob/main/KDPScreenshot.png)
 
 # Why?
 As a bit of an experiment. When i'm coding, I use vscode with a vim emulator extension, Or occasionally just vim. So my programming workflow is almost entirely keyboard driven. I was curious if such an approach might work for pixelart. *Curiously* there's not a whole lot of keyboard driven pixel art editors out there so i had to make my own.
@@ -10,6 +11,8 @@ The way it works is *inspired* by my vim and vscode workflow. You have a selecti
 * `d` to draw
 * `x` to erase
 * `f` to fill
+* `u` to undo
+* `y` to redo
 * `s` to enter select mode
 * `g` & `lshift g` to enter copy mode & cut mode, respectively. (while in select mode)
 * while in copy/cut mode, press `d` to paste.
