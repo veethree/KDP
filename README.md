@@ -11,11 +11,10 @@ The way it works is *inspired* by my vim and vscode workflow. You have a selecti
 * `x` to erase
 * `f` to fill
 * `s` to enter select mode
-* `g` to enter copy mode (while in select mode)
-* `lshift + d` to enter cut mode
+* `g` & `lshift g` to enter copy mode & cut mode, respectively. (while in select mode)
 * while in copy/cut mode, press `d` to paste.
-* if you hold down `lctrl` and use the arrow keys you navigate the color palette
-* `mh` & `mv` to enable horiontal and vertical mirroring, respectively.
+* if you hold down `lctrl` you can use the arrow keys you navigate the color palette
+* `mh` & `mv` to enable horizontal and vertical mirroring, respectively.
 #
 Then theres a bunch of commands to speed up navigating around your image. Heres a few of them.
 * `ww` followed by an arrow key, Your cursor will warp to the edge corresponding to the arrow key
@@ -23,7 +22,7 @@ Then theres a bunch of commands to speed up navigating around your image. Heres 
 * `wc` followed by an arrow key works like `ww`, except it stops when the color changes.
 * `dc` followed by an arrow key is like `wc` except it fills in the pixels on the way
 #
-Some functions are accessed via the command palette. To show the command palette you press "tab". Here's a few basics
+Some functionality are accessed via the command palette. To show the command palette you press "tab". Here's a few basics
 * `new [width] [height]` - Creates a new image with the specified dimensions. If only `width` is provided, It will be used for height as well.
 * ex: `new 16 16`
 
