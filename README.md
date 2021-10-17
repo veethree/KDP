@@ -34,8 +34,16 @@ Some functionality are accessed via the command palette. To show the command pal
 * `os` - Opens KDE's save directory in your OS.
 
 # Configuration
-I designed this to be highly customizable from the ground up. You can change any of the UI colors, keyboard shortcuts & other settings in the `config.ini` file. Please note that at the moment the config file is a disorganized mess. Thats because internally, The contents of the config file a stored in a key-value pair table, And lua doesnt iterate over them in any specific order when writing it out to a file. I'm working on fixing that. 
+I designed this to be highly customizable from the ground up. You can change any of the UI colors, keyboard shortcuts & other settings in the `config.ini` file. Please note that at the moment the config file is a disorganized mess. Thats because internally, The contents of the config file a stored in a key-value pair table, And lua doesnt iterate over them in any specific order when writing it out to a file. I'm working on fixing that.
+the current gameplan is to skip the whole .ini nonsense and just use a .lua file. One wonders why i didn't just do that from the start.
 
 # Color palettes
 KDP Can load and use color palettes from images, As long as they're at an 1x scale. Such as any palettes on [lospec](https://lospec.com/palette-list). 
 To load in a palette, Place it in the "palettes" folder in KDP's save directory (accessible via the "os" command), And either change the "default" field under the [palette] header in config.ini to "palettes/your_palette.png", Or use the `loadPalette your_palette` command.
+
+# Caveats
+So i decided to make this thing with [löve](https://love2d.org/) because i'm very comfortable with it, So i knew i'd have a working prototype in no time. But löve probably isn't the right tool for this type of program.
+Main issue is [file system access](https://love2d.org/wiki/love.filesystem), Löve only gives you access to a single directory in the filesystem for writing files.
+So you cant open an image in an arbitrary location on your computer and edit it with KDP. However, If you drag and drop a .png onto KDP it will happily load it.
+Another thing worth noting is, Currently KDP doesn't do great with larger images, There's no zooming, And it tends to lag when larger images are loaded.
+So editing a whole tile atlas is a hassle.
