@@ -21,17 +21,6 @@ function editor:load()
         y = 0,
         pixel = config.settings.empty_pixel
     }
-
-    self.selection = {
-        x = 0, 
-        y = 0, 
-        originX = 0, 
-        originY = 0, 
-        width = 0, 
-        height = 0, 
-        pixels = {}
-    }
-
     self.palette = {
         selected = 1,
         colors = {}
@@ -39,21 +28,28 @@ function editor:load()
 
     -- Loading modes
     self.modes = {}
-    local modeFiles = fs.getDirectoryItems("src/class/editorModes")
+    local modeFiles = fs.getDirectoryItems("src/editorModes")
     for _, file in ipairs(modeFiles) do
         local name = get_file_name(file)
         if get_file_type(file) == "lua" then
-            self.modes[name] = fs.load(f("src/class/editorModes/%s", file))()
+            self.modes[name] = fs.load(f("src/editorModes/%s", file))()
+            self.modes[name]:init(self)
         end
     end
+    self.activeMode = "none" -- Used to check which mode is active within editor.lua.
 
     self:setMode(config.settings.default_mode)
 end
 
 function editor:setMode(mode)
     assert(self.modes[mode], f("Mode '%s' does not exist", mode))
+    local passData -- Data to pass between the previous & new mode
+    if self.mode then 
+        passData = self.mode:leave() 
+    end
     self.mode = self.modes[mode]
-    self.mode:enter(self)
+    self.mode:enter(passData)
+    self.activeMode = mode
 end
 
 function editor:updateCellSize()
@@ -143,6 +139,9 @@ function editor:draw()
         end
 
         self.mode:draw(xOffset, yOffset)
+
+        --lg.setColor(1, 0, 0)
+        --lg.rectangle("line", xOffset + (self.cursor.x - 1) * self.cellSize, yOffset + (self.cursor.y - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
     end
 
     -- Color palette
@@ -223,7 +222,7 @@ function editor:moveCursor(x, y)
     self.cursorPixel = self.pixels[self.cursor.y][self.cursor.x]
 
     -- updating mode
-    self.mode:moveCursor(self.cursor.x, self.cursor.y)
+    self.mode:cursorMoved(self.cursor.x, self.cursor.y)
 end
 --<<[[ PALETTE ]]>>--
 
@@ -259,9 +258,22 @@ end
 --<<[[ EDITING ]]>>--
 
 function editor:drawPixel(history)
-    history = history or true
-    if history then self:writeHistory() end
-    self.pixels[self.cursor.y][self.cursor.x] = copyColor(self.color)
+    if self.activeMode == "drawMode" then
+        history = history or true
+        if history then self:writeHistory() end
+        self.pixels[self.cursor.y][self.cursor.x] = copyColor(self.color)
+    end
+end
+
+function editor:placePixels(pixels, xOffset, yOffset)
+    self:writeHistory()
+    for y=1, #pixels do
+        for x=1, #pixels[y] do
+           if self:inBounds(x + xOffset, y + yOffset) then
+               self.pixels[y + yOffset][x + xOffset] = copyColor(pixels[y][x])
+           end 
+        end
+    end
 end
 
 function editor:erasePixel()
@@ -279,8 +291,10 @@ function editor:pickPixel()
     end
 end
 
-function editor:getPixel()
-    return self.pixels[self.cursor.y][self.cursor.x]
+function editor:getPixel(x, y)
+    x = x or self.cursor.x
+    y = y or self.cursor.y
+    return self.pixels[y][x]
 end
 
 function editor:fill(x, y, target)
@@ -326,44 +340,6 @@ function editor:warpCursor(xStep, yStep, fill)
         else
             self:moveCursor(xStep, yStep)
             if fill then self:drawPixel() end
-        end
-    end
-end
-
-function editor:setSelectMode(set)
-    set = set or not self.selectMode
-    self.selectMode = set
-    if self.selectMode then
-        self.selection.originX, self.selection.originY = self.cursor.x, self.cursor.y
-        self.selection.x, self.selection.y = self.cursor.x, self.cursor.y
-        self.selection.width, self.selection.height = 1, 1
-        self.grabMode = false
-        self:updateSelection()
-    end
-end
-
-function editor:updateSelection()
-    self.selection.pixels = {}
-    for y=self.selection.y - 1, self.selection.y + self.selection.height - 1 do
-        self.selection.pixels[y - self.selection.y + 1] = {}
-        for x=self.selection.x, self.selection.x + self.selection.width do
-            self.selection.pixels[y - self.selection.y + 1][x - self.selection.x + 1] = self:clonePixel(x, y)
-        end
-    end
-end
-
-function editor:setGrabMode(set, cut)
-    set = set or not self.grabMode
-    cut = cut or false
-    
-    if self.selectMode and not self.grabMode then
-        self.grabMode = set
-        self.grabModeCut = cut
-        if self.selection.originX > self.cursor.x then
-            self.cursor.x = self.selection.originX
-        end
-        if self.selection.originY > self.cursor.y then
-            self.cursor.y = self.selection.originY
         end
     end
 end

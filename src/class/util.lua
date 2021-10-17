@@ -32,6 +32,11 @@ function compareColor(a, b)
     return same
 end
 
+function setAlpha(alpha)
+    local r, g, b = lg.getColor()
+    lg.setColor(r, g, b, alpha)
+end
+
 function requireFolder(folder)
     if fs.getInfo(folder) then
         for i,v in ipairs(fs.getDirectoryItems(folder)) do
