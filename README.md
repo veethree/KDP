@@ -22,7 +22,7 @@ Then theres a bunch of commands to speed up navigating around your image. Heres 
 * `wc` followed by an arrow key works like `ww`, except it stops when the color changes.
 * `dc` followed by an arrow key is like `wc` except it fills in the pixels on the way
 #
-Some functionality are accessed via the command palette. To show the command palette you press "tab". Here's a few basics
+Some functionality is accessed via the command palette. To show the command palette you press "tab". Here's a few basics
 * `new [width] [height]` - Creates a new image with the specified dimensions. If only `width` is provided, It will be used for height as well.
 * ex: `new 16 16`
 
