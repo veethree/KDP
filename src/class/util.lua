@@ -72,7 +72,15 @@ end
 
 function saveImage(image, path)
     if fs.getInfo(path) then
-       return false
+        prompt:new(f("'%s' already exists! Overwrite?", path), {"yes", "no"}, function(res)
+            if res == "yes" then
+                fs.remove(path)
+                saveImage(image, path)
+                editor:print(f("Saved as '%s'", path))
+            else
+                editor:print("Nothing saved.")
+            end
+        end)
     else
         image:encode("png", path)
         return true

@@ -3,6 +3,13 @@
 console:load()
 console:hide()
 
+-- Loaidng custom commands
+for _, file in pairs(fs.getDirectoryItems("commands")) do
+    if get_file_type(file) == "lua" then
+        console:register(get_file_name(file), fs.load("commands/"..file)() )
+    end
+end
+
 console:register("q", function() love.event.push("quit") end)
 
 console:register("os", function() love.system.openURL("file://"..love.filesystem.getSaveDirectory()) end)

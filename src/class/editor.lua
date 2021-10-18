@@ -242,6 +242,8 @@ function editor:setCursor(x, y)
     x = x or self.cursor.x
     y = y or self.cursor.y
     self.cursor.x, self.cursor.y = floor(x), floor(y)
+    if self.cursor.x == 0 then self.cursor.x = 1 end
+    if self.cursor.y == 0 then self.cursor.y = 1 end
     self.cursor.pixel = self.pixels[self.cursor.y][self.cursor.x]
 end
 
@@ -273,6 +275,19 @@ function editor:movePaletteCursor(x, y)
     elseif y < 0 then
         self:selectPaletteColor(self.palette.selected - config.settings.max_palette_columns)
     end
+end
+
+function editor:loadPaletteFromData(data, path)
+    self.palette.colors = {}
+    for y=0, data:getHeight() - 1 do
+        for x=0, data:getWidth() - 1 do
+            local i = (y * (data:getHeight() - 1)) + x + 1
+            local r, g, b, a = data:getPixel(x, y)
+            self.palette.colors[i] = {r, g, b, a}
+        end
+    end
+    self:selectPaletteColor(1)
+    self:print(f("Loaded palette '%s'", path))
 end
 
 function editor:loadPalette(path)
@@ -460,11 +475,6 @@ function editor:save(file)
         end
     end
     local ok = saveImage(data, "save/"..file)
-    if ok then
-        self:print(f("Saved as '%s'", "save/"..file))
-    else
-        self:print(f("'%s' already exists", "save/"..file))
-    end
 end
 
 function editor:export(filename, scale)
@@ -479,11 +489,6 @@ function editor:export(filename, scale)
     end
     lg.setCanvas()
     local ok = saveImage(canvas:newImageData(), "export/"..filename)
-    if ok then
-        self:print(f("Exported image as '%s' at %dx%d", filename, canvas:getWidth(), canvas:getHeight()))
-    else
-        self:print(f("'%s' already exists", "export/"..filename))
-    end
 end 
 --<<[[ SETTINGS ]]>>--
 

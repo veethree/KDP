@@ -27,7 +27,7 @@ local smoof = {
     stack = {},
     bind_stack = {},
     default_smoof_value = 0.001,
-    default_completion_threshold = 0.1
+    default_completion_threshold = 0.01
 }
 
 -- Checks if an object is already in the stack, And returns every instance of it

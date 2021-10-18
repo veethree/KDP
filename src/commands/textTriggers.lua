@@ -4,7 +4,11 @@
 --
 --
 -- Configuring tt
-tt:setInputFilter(function() return not console.visible end)
+tt:setInputFilter(function() 
+    if not console.visible and not prompt.visible then
+        return true
+    end
+end)
 tt:setBufferTimeout(config.settings.command_timeout)
 tt:setBufferLength(8)
 
