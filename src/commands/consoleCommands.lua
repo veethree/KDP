@@ -56,6 +56,16 @@ console:register("new", function(w, h)
     editor:new(w or 16, h or 16)
 end)
 
+console:register("resize", function(w, h)
+    if w and not h then h = w end
+    if not tonumber(w) and not tonumber(h) then 
+        editor:print("Invalid arguments")
+        return 
+    end
+    editor:resizeImage(w, h)
+    editor:print(f("Resized to %dx%d", w, h))
+end)
+
 console:register("save", function(...)
     local file = filenameFromTable({...}, "png")
     if #file < 1 then 

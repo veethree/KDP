@@ -127,7 +127,7 @@ function love.keypressed(key)
         editor:keypressed(key)
 
         if key == config.keys.toggle_grid then 
-            config.settings.show_grid = not config.settings.show_grid
+            config.settings.show_pixel_border = not config.settings.show_pixel_border
         elseif key == config.keys.cursor_change then
             local r, g, b, a = unpack(editor:getPixel())
             console:show()

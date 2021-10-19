@@ -59,11 +59,13 @@ function selectMode:updateSelection()
 end
 
 function selectMode:draw(xOffset, yOffset)
+    lg.push()
+    self.editor:scale()
     local cellSize = self.editor.cellSize
     lg.setColor(config.color.selection)
     lg.setLineWidth(1)
     lg.rectangle("line", xOffset + self.x * cellSize, yOffset + self.y * cellSize, self.width * cellSize, self.height * cellSize)
-
+    lg.pop()
     --lg.rectangle("fill", xOffset + self.x * cellSize, yOffset + self.y * cellSize, cellSize, cellSize )
     --lg.setColor(0, 1, 0)
     --lg.rectangle("fill", self.originX * cellSize, self.originY * cellSize, cellSize , cellSize)

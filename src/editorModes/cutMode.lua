@@ -22,6 +22,8 @@ function mode:cursorMoved(x, y)
 end
 
 function mode:draw(xOffset, yOffset)
+    lg.push()
+    self.editor:scale()
     local cellSize = self.editor.cellSize
     lg.setColor(config.color.selection)
     lg.rectangle("line", xOffset + self.x * cellSize, yOffset + self.y * cellSize, self.selection.width * cellSize, self.selection.height * cellSize)
@@ -34,6 +36,7 @@ function mode:draw(xOffset, yOffset)
             lg.rectangle("fill", xOffset + (self.x * cellSize) + (x - 1) * cellSize, yOffset + (self.y * cellSize) + (y - 1) * cellSize, cellSize, cellSize )
         end
     end
+    lg.pop()
 
     --lg.setColor(config.color.selection)
     --lg.rectangle("fill", xOffset + self.x * cellSize, yOffset + self.y * cellSize, cellSize, cellSize )

@@ -12,7 +12,8 @@ return {
         debug_background = {0, 0, 0, 100},
         selection = {255, 0, 255},
         mirror = {91, 156, 222},
-        prompt_shade = {0, 0, 0, 255}
+        prompt_shade = {0, 0, 0, 255},
+        grid_color = {0, 0, 0}
     },
     font = {
         file = "src/font/monogram.ttf"
@@ -28,8 +29,8 @@ return {
         cursor_pick = "t",
         cursor_jump = "lshift",
 
-        zoom_in = "zup",
-        zoom_out = "zdown",
+        zoom_in = {"z", "up"},
+        zoom_out = {"z", "down"},
 
         cursor_line_left = "wdleft",
         cursor_line_right = "wdright",
@@ -77,9 +78,14 @@ return {
         default_mode = "drawMode",
         editor_border_width = 4,
         empty_pixel = {0, 0, 0, 0},
-        
-        show_grid = false,
+
+        show_pixel_border = false,
         debug = false,
+
+        show_grid = true,
+        grid_width = 16,
+        grid_height = 16,
+        grid_thickness = 1,
 
         max_palette_columns = 8,
         max_palette_rows = 32,

@@ -58,7 +58,7 @@ function editor:setMode(mode)
 end
 
 function editor:updateCellSize()
-    self.cellSize = min(floor(self.safeWidth / (self.width / self.zoom + 2)), floor(self.safeWidth / (self.width / self.zoom + 2)))
+    self.cellSize = min(floor(self.safeWidth / (self.width / self.zoom + 2)), floor(self.safeHeight / (self.height / self.zoom + 2)))
 
 end
 
@@ -82,6 +82,30 @@ function editor:new(width, height)
     self:updateCellSize()
     self:setCursor(width / 2, height / 2)
     self:print("Created new image")
+end
+
+function editor:resizeImage(width, height)
+    local previousWidth, previousHeight = self.width, self.height
+    self.width = tonumber(width)
+    self.height = tonumber(height)
+    if self.cursor.x > self.width then self:setCursor(self.width) end
+    if self.cursor.y > self.height then self:setCursor(nil, self.height) end
+    -- Adding new pixels if larger
+    if self.height >= previousHeight then
+       for y=previousHeight + 1, self.height do
+           self.pixels[y] = {}
+           for x=1, self.width do
+               self.pixels[y][x] = copyColor(config.settings.empty_pixel)
+           end
+       end 
+    end
+    if self.width >= previousWidth then
+        for y=1, self.height do
+            for x=previousWidth + 1, self.width do
+                self.pixels[y][x] = copyColor(config.settings.empty_pixel)
+            end
+        end
+    end
 end
 
 function editor:loadImageFromPath(path)
@@ -207,20 +231,35 @@ function editor:drawImage()
     if self.pixels then
         local xOffset, yOffset = self:getOffset()
         
+        lg.push()
+        self:scale()
         -- Border
         lg.setColor(config.color.background_alt)
         lg.setLineWidth(config.settings.editor_border_width)
         lg.rectangle("line", xOffset, yOffset, self.width * self.cellSize, self.height * self.cellSize)
 
+        -- Grid
+        local gridWidth = floor(self.width / config.settings.grid_width)
+        local gridHeight = floor(self.height / config.settings.grid_height)
+        local cellHeight = (self.height * self.cellSize) / gridHeight
+        local cellWidth = (self.width * self.cellSize) / gridWidth
+        lg.setColor(config.color.grid_color)
+        lg.setLineWidth(config.settings.grid_thickness)
+        for y=1, gridHeight do
+            local ly = yOffset + cellHeight * y 
+            lg.line(xOffset, ly, xOffset + (self.width * self.cellSize), ly)
+        end
+        for x=1, gridWidth do
+            local lx = xOffset + cellWidth * x
+            lg.line(lx, yOffset, lx, yOffset + (self.height * self.cellSize))
+        end
         -- Image
-        lg.push()
-        self:scale()
         for y=1, self.height do
             for x=1, self.width do
                 local pixel = self.pixels[y][x]
                 lg.setColor(pixel)
                 local border = 1
-                if not config.settings.show_grid then
+                if not config.settings.show_pixel_border then
                     border = 0
                 end
                 --local fx = self.cursor.x * self.zoom + x - self.cursor.x * self.zoom
@@ -330,7 +369,7 @@ function editor:moveCursor(x, y)
     if self.cursor.x < 1 then self.cursor.x = 1 elseif self.cursor.x > self.width then self.cursor.x = self.width end
 
     self.cursor.y = self.cursor.y + y
-    if self.cursor.y < 1 then self.cursor.y = 1 elseif self.cursor.y > self.width then self.cursor.y = self.width end
+    if self.cursor.y < 1 then self.cursor.y = 1 elseif self.cursor.y > self.height then self.cursor.y = self.height end
 
     self.cursorPixel = self.pixels[self.cursor.y][self.cursor.x]
 
@@ -584,12 +623,14 @@ function editor:keypressed(key)
            self:moveCursor(0, -1)
         elseif key == config.keys.cursor_down then
            self:moveCursor(0, 1)
-        elseif key == config.keys.zoom_in then
-            self.zoom = self.zoom + 1
-        elseif key == config.keys.zoom_out then
-            self.zoom = self.zoom - 1
-            if self.zoom < 1 then
-                self.zoom = 1
+        end
+        if key == config.keys.zoom_in[2] then
+            if lk.isDown(config.keys.zoom_in[1]) then
+                self:setZoom(1)
+            end
+        elseif key == config.keys.zoom_out[2] then
+            if lk.isDown(config.keys.zoom_out[1]) then
+                self:setZoom(-1)
             end
         end
     end

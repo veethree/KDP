@@ -25,9 +25,6 @@ tt:new(config.keys.clear_mirror, function()
     editor.horizontalMirror = false
 end)
 
--- Zoom
-tt:new(config.keys.zoom_in, function() editor:setZoom(1) end)
-tt:new(config.keys.zoom_out, function() editor:setZoom(-1) end)
 
 -- Line fill
 tt:new(config.keys.cursor_line_left, function() editor:fillLine(-1, 0) end)
