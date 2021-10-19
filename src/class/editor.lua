@@ -29,6 +29,8 @@ function editor:load()
         colors = {}
     }
 
+    self.zoom = 1
+
     -- Loading modes
     self.modes = {}
     local modeFiles = fs.getDirectoryItems("src/editorModes")
@@ -56,7 +58,14 @@ function editor:setMode(mode)
 end
 
 function editor:updateCellSize()
-    self.cellSize = min(floor(self.safeWidth / self.width), floor(self.safeHeight / self.height))
+    self.cellSize = min(floor(self.safeWidth / (self.width / self.zoom + 2)), floor(self.safeWidth / (self.width / self.zoom + 2)))
+
+end
+
+function editor:clamp(x, y)
+    if x < 1 then x = 1 elseif x > self.width then x = self.width end
+    if y < 1 then y = 1 elseif y > self.height then y = self.height end
+    return x, y
 end
 
 function editor:new(width, height)
@@ -113,55 +122,31 @@ function editor:loadImageFromData(data, path)
     self:print(f("Loaded image '%s'", path))
 end
 
-function editor:draw()
-    if self.pixels then
-        self.safeWidth = lg.getWidth() * 0.8
-        self.safeHeight = lg.getHeight() * 0.95
-        self:updateCellSize()
+function editor:setZoom(amount)
+    self.zoom = self.zoom + amount
+    if self.zoom < 1 then self.zoom = 1 end
+end
 
-        local drawWidth = self.width * self.cellSize
-        local drawHeight = self.height * self.cellSize
-        local xOffset = (self.safeWidth / 2) - (drawWidth / 2)
-        local yOffset = (self.safeHeight / 2) - (drawHeight / 2)
-        -- Border
-        lg.setColor(config.color.background_alt)
-        lg.setLineWidth(config.settings.editor_border_width)
-        lg.rectangle("line", xOffset, yOffset, self.width * self.cellSize, self.height * self.cellSize)
-
-        -- Image
-        for y=1, self.height do
-            for x=1, self.width do
-                local pixel = self.pixels[y][x]
-                lg.setColor(pixel)
-                local border = 1
-                if not config.settings.show_grid then
-                    border = 0
-                end
-                lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - border, self.cellSize - border)
-            end
-        end
-        
-        -- Mirror
-        if self.horizontalMirror then
-            lg.setColor(config.color.mirror)
-            lg.print("HORI MIRR", 12, 12)
-            local x = xOffset + (self.horizontalMirror - 1) * self.cellSize
-            lg.rectangle("line", x, yOffset, self.cellSize, yOffset + self.height * self.cellSize)
-        end
-
-        if self.verticalMirror then
-            lg.setColor(config.color.mirror)
-            lg.print("VERT MIRR", 12, 12)
-            local y = yOffset + (self.verticalMirror - 1) * self.cellSize
-            lg.rectangle("line", xOffset, y, yOffset + self.width * self.cellSize, self.cellSize)
-        end
-        self.mode:draw(xOffset, yOffset)
-
-        --lg.setColor(1, 0, 0)
-        --lg.rectangle("line", xOffset + (self.cursor.x - 1) * self.cellSize, yOffset + (self.cursor.y - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+function editor:scale()
+    if self.zoom > 1 then
+        local xOffset, yOffset = self:getOffset()
+        local curX = xOffset + (self.cursor.x - 1) * self.cellSize
+        local curY = yOffset + (self.cursor.y - 1) * self.cellSize
+        local cx = self.safeWidth / 2
+        local cy = self.safeHeight / 2
+        lg.translate((cx - curX), (cy - curY))
     end
+end
 
-    -- Color palette
+function editor:getOffset()
+    local drawWidth = self.width * self.cellSize
+    local drawHeight = self.height * self.cellSize
+    local xOffset = (self.safeWidth / 2) - (drawWidth / 2)
+    local yOffset = (self.safeHeight / 2) - (drawHeight / 2)
+    return xOffset, yOffset
+end
+
+function editor:drawColorPalette()
     local x = self.safeWidth 
     local y = 0
     local cellWidth = (lg.getWidth() - self.safeWidth) / config.settings.max_palette_columns
@@ -183,8 +168,10 @@ function editor:draw()
             column = 1
         end
     end
+end
 
-    -- Info panel
+function editor:drawInfoPanel()
+    -- Background
     lg.setColor(self.color)
     lg.rectangle("fill", 0, self.safeHeight, lg.getWidth(), lg.getHeight() - self.safeHeight)
     
@@ -199,6 +186,92 @@ function editor:draw()
 
     -- Right
     lg.printf(f("cmd: %s | %dx%d", tt:getBuffer(), self.width, self.height), -12, self.safeHeight, lg.getWidth(), "right")
+end
+
+function editor:drawMirror()
+    local xOffset, yOffset = self:getOffset()
+    if self.horizontalMirror then
+        lg.setColor(config.color.mirror)
+        local x = xOffset + (self.horizontalMirror - 1) * self.cellSize
+        lg.rectangle("line", x, yOffset, self.cellSize, yOffset + self.height * self.cellSize)
+    end
+
+    if self.verticalMirror then
+        lg.setColor(config.color.mirror)
+        local y = yOffset + (self.verticalMirror - 1) * self.cellSize
+        lg.rectangle("line", xOffset, y, yOffset + self.width * self.cellSize, self.cellSize)
+    end
+end
+
+function editor:drawImage()
+    if self.pixels then
+        local xOffset, yOffset = self:getOffset()
+        
+        -- Border
+        lg.setColor(config.color.background_alt)
+        lg.setLineWidth(config.settings.editor_border_width)
+        lg.rectangle("line", xOffset, yOffset, self.width * self.cellSize, self.height * self.cellSize)
+
+        -- Image
+        lg.push()
+        self:scale()
+        for y=1, self.height do
+            for x=1, self.width do
+                local pixel = self.pixels[y][x]
+                lg.setColor(pixel)
+                local border = 1
+                if not config.settings.show_grid then
+                    border = 0
+                end
+                --local fx = self.cursor.x * self.zoom + x - self.cursor.x * self.zoom
+                lg.rectangle("fill", xOffset + (x - 1) * self.cellSize, yOffset + (y - 1) * self.cellSize, self.cellSize - border, self.cellSize - border)
+            end
+        end
+        lg.pop()
+    end
+end
+
+function editor:drawCursor()
+    local xOffset, yOffset = self:getOffset()
+    lg.push()
+    lg.setColor(self.color)
+    lg.setLineWidth(1)
+    local x = xOffset + (self.cursor.x - 1) * self.cellSize
+    local y = yOffset + (self.cursor.y - 1) * self.cellSize
+    self:scale()
+    -- Cursor
+    lg.rectangle("fill", x, y, self.cellSize - self.border, self.cellSize - self.border)
+    lg.setColor(invertColor(self.color))
+    lg.rectangle("line", x, y, self.cellSize - self.border, self.cellSize - self.border)
+    
+    -- Horizontal Mirror
+    if self.horizontalMirror then
+        local mirrorX = self.horizontalMirror - self.cursor.x + self.horizontalMirror
+        lg.setColor(config.color.mirror)
+        lg.rectangle("fill", xOffset + (mirrorX - 1) * self.cellSize, yOffset + (self.cursor.y - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+    end
+    -- Vertical Mirror
+    if self.verticalMirror then
+        local mirrorY = self.verticalMirror - self.cursor.y + self.verticalMirror
+        lg.setColor(config.color.mirror)
+        lg.rectangle("fill", xOffset + (self.cursor.x - 1) * self.cellSize, yOffset + (mirrorY - 1) * self.cellSize, self.cellSize - self.border, self.cellSize - self.border)
+    end
+
+    lg.pop()
+end
+
+function editor:draw()
+    self.safeWidth = lg.getWidth() * 0.8
+    self.safeHeight = lg.getHeight() * 0.95
+    self:updateCellSize()
+
+    self:drawImage()
+    self:drawColorPalette()
+    self:drawInfoPanel()
+    local xOffset, yOffset = self:getOffset()
+    self.mode:draw(xOffset, yOffset)
+
+
 end
 
 function editor:update(dt)
@@ -249,6 +322,10 @@ end
 
 function editor:moveCursor(x, y)
     -- Basic cursor movement
+    if lk.isDown(config.keys.cursor_jump) then
+        x = x * config.settings.jump_length
+        y = y * config.settings.jump_length
+    end
     self.cursor.x = self.cursor.x + x
     if self.cursor.x < 1 then self.cursor.x = 1 elseif self.cursor.x > self.width then self.cursor.x = self.width end
 
@@ -306,21 +383,22 @@ end
 
 --<<[[ EDITING ]]>>--
 
-function editor:drawPixel(history)
+function editor:drawPixel(history, color)
+    color = color or self.color
     if self.activeMode == "drawMode" then
         if history == nil then history = true end
         if history then self:writeHistory() end
-        self.pixels[self.cursor.y][self.cursor.x] = copyColor(self.color)
+        self.pixels[self.cursor.y][self.cursor.x] = copyColor(color)
         if self.horizontalMirror then
             local mirrorX = self.horizontalMirror - self.cursor.x + self.horizontalMirror
             if self:inBounds(mirrorX, self.cursor.y) then
-                self.pixels[self.cursor.y][mirrorX] = copyColor(self.color)
+                self.pixels[self.cursor.y][mirrorX] = copyColor(color)
             end
         end
         if self.verticalMirror then
             local mirrorY = self.verticalMirror - self.cursor.y + self.verticalMirror
             if self:inBounds(self.cursor.x, mirrorY) then
-                self.pixels[mirrorY][self.cursor.x] = copyColor(self.color)
+                self.pixels[mirrorY][self.cursor.x] = copyColor(color)
             end
         end
     end
@@ -339,7 +417,7 @@ end
 
 function editor:erasePixel()
     self:writeHistory()
-    self.pixels[self.cursor.y][self.cursor.x] = {0, 0, 0, 0}
+    self:drawPixel(false, config.settings.empty_pixel)
 end
 
 function editor:pickPixel()
@@ -506,6 +584,13 @@ function editor:keypressed(key)
            self:moveCursor(0, -1)
         elseif key == config.keys.cursor_down then
            self:moveCursor(0, 1)
+        elseif key == config.keys.zoom_in then
+            self.zoom = self.zoom + 1
+        elseif key == config.keys.zoom_out then
+            self.zoom = self.zoom - 1
+            if self.zoom < 1 then
+                self.zoom = 1
+            end
         end
     end
     self.mode:keypressed(key)

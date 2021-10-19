@@ -26,6 +26,10 @@ return {
         cursor_erase = "x",
         cursor_fill = "f",
         cursor_pick = "t",
+        cursor_jump = "lshift",
+
+        zoom_in = "zup",
+        zoom_out = "zdown",
 
         cursor_line_left = "wdleft",
         cursor_line_right = "wdright",
@@ -65,6 +69,8 @@ return {
     settings = {
         use_history = true,
         max_undo_steps = 100,
+
+        jump_length = 10,
         
         command_timeout = 0.3,
 
@@ -81,6 +87,7 @@ return {
         window_width = 800,
         window_height = 600,
         window_fullscreen = false,
-        window_resizable = true
+        window_resizable = true,
+        file_drop_action = "region" -- prompt, region, image, palette
     }
 }

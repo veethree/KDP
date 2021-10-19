@@ -13,25 +13,8 @@ function drawMode:leave()
 end
 
 function drawMode:draw(xOffset, yOffset)
-    lg.setColor(self.editor.color)
-    lg.setLineWidth(1)
-    lg.rectangle("fill", xOffset + (self.editor.cursor.x - 1) * self.editor.cellSize, yOffset + (self.editor.cursor.y - 1) * self.editor.cellSize, self.editor.cellSize - self.editor.border, self.editor.cellSize - self.editor.border)
-
-    lg.setColor(invertColor(self.editor.color))
-    lg.rectangle("line", xOffset + (self.editor.cursor.x - 1) * self.editor.cellSize, yOffset + (self.editor.cursor.y - 1) * self.editor.cellSize, self.editor.cellSize - self.editor.border, self.editor.cellSize - self.editor.border)
-
-    -- Horizontal Mirror
-    if self.editor.horizontalMirror then
-        local mirrorX = self.editor.horizontalMirror - self.editor.cursor.x + self.editor.horizontalMirror
-        lg.setColor(config.color.mirror)
-        lg.rectangle("fill", xOffset + (mirrorX - 1) * self.editor.cellSize, yOffset + (self.editor.cursor.y - 1) * self.editor.cellSize, self.editor.cellSize - self.editor.border, self.editor.cellSize - self.editor.border)
-    end
-    -- Vertical Mirror
-    if self.editor.verticalMirror then
-        local mirrorY = self.editor.verticalMirror - self.editor.cursor.y + self.editor.verticalMirror
-        lg.setColor(config.color.mirror)
-        lg.rectangle("fill", xOffset + (self.editor.cursor.x - 1) * self.editor.cellSize, yOffset + (mirrorY - 1) * self.editor.cellSize, self.editor.cellSize - self.editor.border, self.editor.cellSize - self.editor.border)
-    end
+    self.editor:drawCursor()
+    self.editor:drawMirror()
 end
 
 function drawMode:cursorMoved(x, y)

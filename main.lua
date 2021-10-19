@@ -144,25 +144,45 @@ function love.keypressed(key)
 end
 
 function love.filedropped(file)
-    prompt:new("Load as", {"Image", "Palette"}, function(res)
-        if res == "Image" then
-            file:open("r")
-            if get_file_type(file:getFilename()) == "png" then
-                local data = love.image.newImageData(file)
-                editor:loadImageFromData(data, file:getFilename())
-            else
-                editor:print("Unsupported file")
-            end
+    local function loadAsImage()
+        file:open("r")
+        if get_file_type(file:getFilename()) == "png" then
+            local data = love.image.newImageData(file)
+            editor:loadImageFromData(data, file:getFilename())
         else
-            file:open("r")
-            if get_file_type(file:getFilename()) == "png" then
-                local data = love.image.newImageData(file)
-                editor:loadPaletteFromData(data, file:getFilename())
-            else
-                editor:print("Unsupported file")
-            end
+            editor:print("Unsupported file")
         end
-    end)
+    end
+
+    local function loadAsPalette()
+        file:open("r")
+        if get_file_type(file:getFilename()) == "png" then
+            local data = love.image.newImageData(file)
+            editor:loadPaletteFromData(data, file:getFilename())
+        else
+            editor:print("Unsupported file")
+        end
+    end
+    
+    if config.settings.file_drop_action == "prompt" then
+        prompt:new("Load as", {"Image", "Palette"}, function(res)
+            if res == "Image" then
+                loadAsImage()
+            else
+                loadAsPalette()
+            end
+        end)
+    elseif config.settings.file_drop_action == "region" then
+        if lm.getX() > editor.safeWidth then
+            loadAsPalette()
+        else
+            loadAsImage()
+        end 
+    elseif config.settings.file_drop_action == "image" then
+        loadAsImage()
+    elseif config.settings.file_drop_action == "palette" then
+        loadAsPalette()
+    end
 end
 
 function love.quit()
